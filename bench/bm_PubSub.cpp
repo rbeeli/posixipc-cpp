@@ -37,8 +37,8 @@ void bench(
             auto t1 = high_resolution_clock::now();
             for (int64_t i = 0; i < iters; ++i)
             {
-                // *&data = posix_ipc::rdtsc::read();
-                *&data = i;
+                *&data = posix_ipc::rdtsc::read();
+                // *&data = i;
                 while (!pub_sub.publish(msg))
                     ;
             }
@@ -54,6 +54,7 @@ void bench(
             posix_ipc::threads::pin(cpu2);
             posix_ipc::threads::set_name("consumer");
 
+            uint64_t counter = 0;
             auto t1 = high_resolution_clock::now();
             for (int i = 0; i < iters; ++i)
             {
@@ -61,13 +62,15 @@ void bench(
                 while (msg.empty())
                     msg = subscriber.dequeue_begin();
 
-                // if ((i & ((1 << 24) - 1)) == 0) [[unlikely]] // every 16M iterations
-                // {
-                //     auto clock = posix_ipc::rdtsc::read();
-                //     auto srv = msg.payload_ptr<uint64_t>()[0];
-                //     auto latency_ns = (clock - srv) / cycles_per_ns;
-                //     std::cout << std::format("latency ns: {:.0f}", latency_ns) << std::endl;
-                // }
+                if (counter == 30'000'000)
+                {
+                    auto clock = posix_ipc::rdtsc::read();
+                    auto srv = msg.payload_ptr<uint64_t>()[0];
+                    auto latency_ns = (clock - srv) / cycles_per_ns;
+                    std::cout << std::format("latency ns: {:.0f}", latency_ns) << std::endl;
+                    counter = 0;
+                }
+                counter++;
 
                 subscriber.dequeue_commit(msg);
             }
