@@ -43,6 +43,18 @@ public:
         return size_;
     }
 
+    /**
+     * Opens an existing shared memory region.
+     */
+    SharedMemory(string name) : SharedMemory(name, false, 0)
+    {
+    }
+
+    /**
+     * Opens or creates a shared memory region.
+     * If `create` is true, the shared memory region is created with the specified size.
+     * If `create` is false, the shared memory region is opened (must exist), and the size is read.
+     */
     SharedMemory(string name, const bool create, const size_t size = 0)
         : shm_name_(name), size_(size), shm_ptr_(nullptr), created_(create)
     {
@@ -59,17 +71,21 @@ public:
                 shm_fd_ = ::shm_open(shm_name_.c_str(), shm_flags, shm_mode);
                 if (shm_fd_ == -1)
                 {
-                    throw std::runtime_error(std::format(
-                        "Failed to open shared memory '{}': {}", shm_name_, std::strerror(errno)
-                    ));
+                    throw std::runtime_error(
+                        std::format(
+                            "Failed to open shared memory [{}]: {}", shm_name_, std::strerror(errno)
+                        )
+                    );
                 }
                 created_ = false;
             }
             else
             {
-                throw std::runtime_error(std::format(
-                    "Failed to open shared memory '{}': {}", shm_name_, std::strerror(errno)
-                ));
+                throw std::runtime_error(
+                    std::format(
+                        "Failed to open shared memory [{}]: {}", shm_name_, std::strerror(errno)
+                    )
+                );
             }
         }
 
@@ -78,19 +94,27 @@ public:
             // create shared memory region
             if (size <= 0)
             {
-                throw std::logic_error(std::format(
-                    "Shared memory '{}' size parameter must be greater than 0, got {}",
-                    shm_name_,
-                    size
-                ));
+                throw std::logic_error(
+                    std::format(
+                        "Shared memory [{}] size parameter must be greater than 0, got {}.",
+                        shm_name_,
+                        size
+                    )
+                );
             }
 
-            if (::ftruncate(shm_fd_, size_) == -1)
+            std::clog << std::format("Creating shared memory [{}] of size {} bytes", shm_name_, size) << std::endl;
+
+            if (::ftruncate(shm_fd_, size) == -1)
             {
                 ::close(shm_fd_);
-                throw std::runtime_error(std::format(
-                    "ftruncate call for shared memory '{}' failed: {}", shm_name_, std::strerror(errno)
-                ));
+                throw std::runtime_error(
+                    std::format(
+                        "ftruncate call for shared memory [{}] failed: {}",
+                        shm_name_,
+                        std::strerror(errno)
+                    )
+                );
             }
         }
         else
@@ -100,11 +124,17 @@ public:
             if (::fstat(shm_fd_, &s) == -1)
             {
                 ::close(shm_fd_);
-                throw std::runtime_error(std::format(
-                    "fstat call for shared memory '{}' failed: {}", shm_name_, std::strerror(errno)
-                ));
+                throw std::runtime_error(
+                    std::format(
+                        "fstat call for shared memory [{}] failed: {}",
+                        shm_name_,
+                        std::strerror(errno)
+                    )
+                );
             }
             size_ = s.st_size;
+
+            std::clog << std::format("Opened shared memory [{}] of size {} bytes", shm_name_, size_) << std::endl;
         }
 
         // map the shared memory region into the address space of the process
@@ -115,9 +145,11 @@ public:
         if (shm_ptr_ == MAP_FAILED)
         {
             ::close(shm_fd_);
-            throw std::runtime_error(std::format(
-                "Failed to mmap shared memory '{}'. Error: {}", shm_name_, std::strerror(errno)
-            ));
+            throw std::runtime_error(
+                std::format(
+                    "Failed to mmap shared memory [{}]. Error: {}", shm_name_, std::strerror(errno)
+                )
+            );
         }
     }
 

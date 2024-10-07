@@ -43,14 +43,14 @@ int main(int argc, char *argv[])
                 files.push_back(entry);
         std::sort(files.begin(), files.end());
 
-        vector<messaging::SubscriberConfig> cfgs;
+        vector<messaging::PubSubConfig> cfgs;
         for (const auto &entry : files)
         {
             std::cout << fmt::format("  - {}", entry.path().filename().string()) << std::endl;
 
             try
             {
-                cfgs.push_back(messaging::SubscriberConfig::from_cfg_file(entry.path().string()));
+                cfgs.push_back(messaging::PubSubConfig::from_cfg_file(entry.path().string()));
             }
             catch (const std::exception &e)
             {

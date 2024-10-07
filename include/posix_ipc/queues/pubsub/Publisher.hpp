@@ -21,7 +21,7 @@ using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
 using std::unique_ptr;
 
-class Subscriber
+class Publisher
 {
 private:
     PubSubConfig config_;
@@ -32,43 +32,63 @@ public:
     time_point<high_resolution_clock> last_drop_time;
     size_t drop_count = 0;
 
-    Subscriber(
+    Publisher(
         const PubSubConfig& config, unique_ptr<SharedMemory> shm, unique_ptr<SPSCQueue> queue
     ) noexcept
         : config_(config), shm_(std::move(shm)), queue_(std::move(queue))
     {
     }
 
-    static Subscriber from_config(const PubSubConfig& config)
+    static Publisher from_config(const PubSubConfig& config)
     {
-        if (!SharedMemory::exists(config.shm_name))
+        unique_ptr<SharedMemory> shm = nullptr;
+
+        // shared memory (try to open, if not exists or size mismatch, create new one)
+        bool recreate = false;
+        if (SharedMemory::exists(config.shm_name))
         {
-            throw std::runtime_error(
-                std::format(
-                    "Cannot create PubSub subscriber, shared memory [{}] does not exist",
-                    config.shm_name
-                )
-            );
+            shm = std::make_unique<SharedMemory>(config.shm_name);
+
+            // check if size matches
+            if (config.storage_size_bytes != shm->size())
+            {
+                std::clog << std::format(
+                                 "Shared memory [{}] size mismatch, expected {} bytes, got {} "
+                                 "bytes, recreating...",
+                                 config.shm_name,
+                                 config.storage_size_bytes,
+                                 shm->size()
+                             )
+                          << std::endl;
+                recreate = true;
+            }
+        }
+        else
+        {
+            // flag to create new shared memory if it does not exist
+            recreate = true;
+            std::clog << std::format(
+                             "Shared memory [{}] does not exist, creating...", config.shm_name
+                         )
+                      << std::endl;
         }
 
-        // open shared memory
-        unique_ptr<SharedMemory> shm = std::make_unique<SharedMemory>(config.shm_name);
-
-        // check if size matches
-        if (config.storage_size_bytes != shm->size())
-        {
-            throw std::runtime_error(
-                std::format(
-                    "Shared memory [{}] size mismatch, expected {}, got {}",
-                    config.shm_name,
-                    config.storage_size_bytes,
-                    shm->size()
-                )
-            );
-        }
+        // recreate shared memory if necessary
+        if (recreate)
+            shm = std::make_unique<SharedMemory>(config.shm_name, true, config.storage_size_bytes);
 
         // initialize queue in shared memory
-        SPSCStorage* storage = reinterpret_cast<SPSCStorage*>(shm->ptr());
+        SPSCStorage* storage;
+        if (recreate)
+        {
+            // calls constructor
+            storage = new (shm->ptr()) SPSCStorage(shm->size());
+        }
+        else
+        {
+            // already exists, just get the pointer
+            storage = reinterpret_cast<SPSCStorage*>(shm->ptr());
+        }
 
         unique_ptr<SPSCQueue> queue = std::make_unique<SPSCQueue>(storage);
 
@@ -80,26 +100,26 @@ public:
         // pthread_mutex_init(native, &attr);
 
         std::clog << std::format(
-                         "Subscriber created using shared memory [{}] with size {} bytes",
+                         "Publisher created in shared memory [{}] with size {} bytes",
                          config.shm_name,
                          shm->size()
                      )
                   << std::endl;
 
-        return Subscriber(config, std::move(shm), std::move(queue));
+        return Publisher(config, std::move(shm), std::move(queue));
     }
 
     // non-copyable
-    Subscriber(const Subscriber&) = delete;
-    Subscriber& operator=(const Subscriber&) = delete;
+    Publisher(const Publisher&) = delete;
+    Publisher& operator=(const Publisher&) = delete;
 
     // movable
-    Subscriber(Subscriber&& other) noexcept
+    Publisher(Publisher&& other) noexcept
         : config_(other.config_), shm_(std::move(other.shm_)), queue_(std::move(other.queue_))
     {
         other.queue_ = nullptr;
     }
-    Subscriber& operator=(Subscriber&& other) noexcept
+    Publisher& operator=(Publisher&& other) noexcept
     {
         if (this != &other)
         {
@@ -116,29 +136,14 @@ public:
         return config_;
     }
 
-    // inline SPSCQueue& queue() const noexcept
-    // {
-    //     return *queue_;
-    // }
-
-    __attribute__((always_inline)) inline void dequeue_commit(const MessageView message) noexcept
-    {
-        queue_->dequeue_commit(message);
-    }
-
-    __attribute__((always_inline)) inline MessageView dequeue_begin() noexcept
-    {
-        return queue_->dequeue_begin();
-    }
-
     __attribute__((always_inline)) inline bool is_empty() const noexcept
     {
         return queue_->is_empty();
     }
 
-    __attribute__((always_inline)) inline bool can_dequeue() const noexcept
+    __attribute__((always_inline)) inline bool publish(const Message& val) noexcept
     {
-        return queue_->can_dequeue();
+        return queue_->enqueue(val);
     }
 };
 } // namespace pubsub

@@ -6,8 +6,6 @@
 #include <vector>
 #include <format>
 
-#include <boost/atomic/detail/pause.hpp>
-
 #include "posix_ipc/rdtsc.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/SharedMemory.hpp"
@@ -16,55 +14,42 @@
 #include "posix_ipc/queues/pubsub/enums.hpp"
 
 using namespace std::chrono;
+using namespace posix_ipc::queues;
 using namespace posix_ipc::queues::spsc;
 using namespace posix_ipc::queues::pubsub;
-using posix_ipc::queues::Message;
-using posix_ipc::queues::MessageView;
 
-void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycles_per_ns)
+void bench(
+    PubSub& pub_sub, Subscriber& subscriber, int64_t iters, int cpu1, int cpu2, double cycles_per_ns
+)
 {
-    const uint64_t storage_size = buffer_size + SPSCStorage::BUFFER_OFFSET;
-
-    SubscriberConfig sub_cfg{
-        .shm_name = "bench",
-        .capacity_bytes = storage_size,
-        .queue_full_policy = QueueFullPolicy::DROP_NEWEST,
-        .log_message_drop = true
-    };
-
-    PubSub pub_sub;
-    pub_sub.subscribe(sub_cfg);
-
-    Subscriber& sub = pub_sub.get_subscriber(sub_cfg.shm_name);
-
     // producer thread
-    nanoseconds producerDuration;
-    auto t = std::jthread(
-        [&producerDuration, &pub_sub, &sub, iters, cpu1]
+    nanoseconds producer_duration;
+    auto p = std::jthread(
+        [&producer_duration, &pub_sub, iters, cpu1]
         {
             posix_ipc::threads::pin(cpu1);
             posix_ipc::threads::set_name("producer");
 
             int64_t data = posix_ipc::rdtsc::read();
             auto size = sizeof(int64_t);
-            auto msg = posix_ipc::queues::Message::borrows((byte*)&data, size);
+            auto msg = Message::borrows((byte*)&data, size);
 
             auto t1 = high_resolution_clock::now();
             for (int64_t i = 0; i < iters; ++i)
             {
-                // *&data = rdtsc::read();
+                // *&data = posix_ipc::rdtsc::read();
                 *&data = i;
                 while (!pub_sub.publish(msg))
                     ;
             }
-            producerDuration = duration_cast<nanoseconds>(high_resolution_clock().now() - t1);
+            producer_duration = duration_cast<nanoseconds>(high_resolution_clock().now() - t1);
         }
     );
 
     // consumer thread
-    nanoseconds consumerDuration;
+    nanoseconds consumer_duration;
     auto c = std::jthread(
-        [&consumerDuration, &sub, iters, cpu2]
+        [&consumer_duration, &subscriber, cycles_per_ns, iters, cpu2]
         {
             posix_ipc::threads::pin(cpu2);
             posix_ipc::threads::set_name("consumer");
@@ -72,62 +57,66 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
             auto t1 = high_resolution_clock::now();
             for (int i = 0; i < iters; ++i)
             {
-                MessageView msg = sub.queue().dequeue_begin();
+                MessageView msg = subscriber.dequeue_begin();
                 while (msg.empty())
-                {
-                    msg = sub.queue().dequeue_begin();
-                }
+                    msg = subscriber.dequeue_begin();
 
-                // if (counter == 10'000'000)
+                // if ((i & ((1 << 24) - 1)) == 0) [[unlikely]] // every 16M iterations
                 // {
-                //     auto clock = rdtsc::read();
-                //     auto srv = msg->payload_ptr<uint64>()[0];
+                //     auto clock = posix_ipc::rdtsc::read();
+                //     auto srv = msg.payload_ptr<uint64_t>()[0];
                 //     auto latency_ns = (clock - srv) / cycles_per_ns;
-                //     std::cout << fmt::format("latency ns: {:.0f}", latency_ns) << std::endl;
-                //     counter = 0;
+                //     std::cout << std::format("latency ns: {:.0f}", latency_ns) << std::endl;
                 // }
-                // counter++;
 
-                // if (i % 100'000 == 0)
-                //     std::cout << fmt::format("iteration {}", i) << std::endl;
-
-                // if (srv != i)
-                //     throw std::runtime_error("wrong value returned by consumer. Out of order?");
-
-                sub.queue().dequeue_commit(msg);
+                subscriber.dequeue_commit(msg);
             }
-            consumerDuration = duration_cast<nanoseconds>(high_resolution_clock().now() - t1);
+            consumer_duration = duration_cast<nanoseconds>(high_resolution_clock().now() - t1);
         }
     );
 
     // wait for threads to finish
-    t.join();
+    p.join();
     c.join();
 
-    int64_t p_ops = iters * 1e9 / producerDuration.count();
-    int64_t c_ops = iters * 1e9 / consumerDuration.count();
-    std::cout << std::format("producer {:L} op/s | ", p_ops)
-              << std::format("consumer {:L} op/s", c_ops) << std::endl;
+    int64_t p_ops = static_cast<double>(iters) * 1e9 / producer_duration.count();
+    int64_t c_ops = static_cast<double>(iters) * 1e9 / consumer_duration.count();
+    std::cout << std::format("producer {:L} op/s | ", (int64_t)p_ops)
+              << std::format("consumer {:L} op/s", (int64_t)c_ops) << std::endl;
 }
 
 int main(int argc, char* argv[])
 {
-    // this somehow triggers ASAN
-    std::locale::global(std::locale("de_CH.UTF-8"));
+    std::locale::global(std::locale("en_US.UTF-8"));
 
     double cycles_per_ns = posix_ipc::rdtsc::measure_cycles_per_ns();
-    std::cout << std::format("cycles per ns: {:.2f}", cycles_per_ns) << std::endl;
+    std::cout << std::format("Cycles per ns: {:.2f}", cycles_per_ns) << std::endl;
 
     int cpu1 = 2;
     int cpu2 = 4;
 
-    const size_t buffer_size = 1'000'000;
+    const size_t storage_size = 1'000'000;
     const int64_t iters = 100'000'000;
+
+    // Create shared memory region for PubSub
+    PubSubConfig sub_cfg{
+        .shm_name = "bench",
+        .storage_size_bytes = storage_size,
+        .queue_full_policy = QueueFullPolicy::DROP_NEWEST,
+        .log_message_drop = true
+    };
+    std::vector<PubSubConfig> sub_cfgs{sub_cfg};
+
+    // Create PubSub instance
+    PubSub pub_sub;
+    pub_sub.sync_configs(sub_cfgs, true);
+
+    // Create Subscriber instance using shared memory
+    Subscriber subscriber = Subscriber::from_config(sub_cfg);
 
     for (int i = 0; i < 10; ++i)
     {
-        bench(iters, buffer_size, cpu1, cpu2, cycles_per_ns);
-        std::cout << std::endl;
+        bench(pub_sub, subscriber, iters, cpu1, cpu2, cycles_per_ns);
     }
 
     return 0;

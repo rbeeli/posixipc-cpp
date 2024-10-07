@@ -12,13 +12,15 @@
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/queues/spsc/SPSCQueue.hpp"
 
+using namespace posix_ipc::queues;
+using namespace posix_ipc::queues::spsc;
 using namespace std::chrono;
 using std::byte;
 using std::unique_ptr;
 
 void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycles_per_ns)
 {
-    const uint64_t storage_size = buffer_size + posix_ipc::queues::spsc::SPSCStorage::BUFFER_OFFSET;
+    const uint64_t storage_size = buffer_size + SPSCStorage::BUFFER_OFFSET;
 
     // // shared memory
     // auto shm = make_unique<SharedMemory>("spsc_bench", true, storage_size);
@@ -27,10 +29,8 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
     // in-process memory
     auto mem_ptr = new byte[storage_size];
 
-    posix_ipc::queues::spsc::SPSCStorage* storage = new (mem_ptr)
-        posix_ipc::queues::spsc::SPSCStorage(storage_size);
-    unique_ptr<posix_ipc::queues::spsc::SPSCQueue> q =
-        std::make_unique<posix_ipc::queues::spsc::SPSCQueue>(storage);
+    SPSCStorage* storage = new (mem_ptr) SPSCStorage(storage_size);
+    unique_ptr<SPSCQueue> q = std::make_unique<SPSCQueue>(storage);
 
     // consumer thread
     nanoseconds producerDuration;
@@ -41,9 +41,9 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
 
             int64_t data = posix_ipc::rdtsc::read();
             auto size = sizeof(int64_t);
-            auto msg = posix_ipc::queues::Message::borrows((byte*)&data, size);
+            auto msg = Message::borrows((byte*)&data, size);
 
-            auto t1 = std::chrono::high_resolution_clock::now();
+            auto t1 = high_resolution_clock::now();
             for (int64_t i = 0; i < iters; ++i)
             {
                 *&data = posix_ipc::rdtsc::read();
@@ -51,9 +51,7 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
                 while (!q->enqueue(msg))
                     ;
             }
-            producerDuration = duration_cast<nanoseconds>(
-                std::chrono::high_resolution_clock::now() - t1
-            );
+            producerDuration = duration_cast<nanoseconds>(high_resolution_clock::now() - t1);
         }
     );
 
@@ -62,7 +60,7 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
 
 
     uint64_t counter = 0;
-    auto t1 = std::chrono::high_resolution_clock::now();
+    auto t1 = high_resolution_clock::now();
     for (int i = 0; i < iters; ++i)
     {
         posix_ipc::queues::MessageView msg = q->dequeue_begin();

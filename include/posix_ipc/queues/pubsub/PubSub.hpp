@@ -1,16 +1,16 @@
 #pragma once
 
+#include <atomic>
 #include <thread>
 #include <format>
 #include <optional>
 #include <vector>
 #include <unordered_map>
 
-#include "posix_ipc/synchro.hpp"
 #include "posix_ipc/SharedMemory.hpp"
 #include "posix_ipc/queues/Message.hpp"
 #include "posix_ipc/queues/pubsub/enums.hpp"
-#include "posix_ipc/queues/pubsub/Subscriber.hpp"
+#include "posix_ipc/queues/pubsub/Publisher.hpp"
 
 namespace posix_ipc
 {
@@ -23,15 +23,17 @@ using std::vector;
 
 struct PubSubChange
 {
-    optional<Subscriber> addition;
+    optional<Publisher> addition;
     optional<string> removal;
 };
 
 class PubSub
 {
 private:
-    vector<Subscriber> subscribers;
-    posix_ipc::IdSpinLock modify_lock;
+    vector<Publisher> publishers;
+    vector<PubSubChange> change_queue;
+    std::atomic<bool> applying_changes{false};
+    std::atomic<bool> changes_enqueued{false};
 
 public:
     PubSub() noexcept
@@ -43,63 +45,84 @@ public:
     PubSub& operator=(const PubSub&) = delete;
 
     // movable
-    PubSub(PubSub&& other) noexcept
-        : subscribers(std::move(other.subscribers))
+    PubSub(PubSub&& other) noexcept //
+        : publishers(std::move(other.publishers))
     {
     }
     PubSub& operator=(PubSub&& other) noexcept
     {
         if (this != &other)
         {
-            subscribers = std::move(other.subscribers);
+            publishers = std::move(other.publishers);
         }
         return *this;
     }
 
-    Subscriber& get_subscriber(string& shm_name)
+    Publisher& get_publisher(const string& shm_name)
     {
-        auto it = std::find_if(
-            subscribers.begin(),
-            subscribers.end(),
-            [&shm_name](const auto& sub) { return sub.config().shm_name == shm_name; }
+        for (auto& pub : publishers)
+        {
+            if (pub.config().shm_name == shm_name)
+                return pub;
+        }
+        throw std::runtime_error(
+            std::format("Publisher for shared memory '{}' not found", shm_name)
         );
-        if (it != subscribers.end())
-            return *it;
-        throw std::runtime_error(std::format("Subscriber '{}' not found", shm_name));
     }
 
-    void subscribe(const SubscriberConfig cfg)
+    void apply_change(PubSubChange&& change)
     {
-        posix_ipc::IdSpinLockGuard guard{modify_lock, 1};
-
-        // LOG_INFO(logger, "Subscribing: {}", cfg.to_string());
-
-        PubSubChange change;
-
-        // create new subscriber
-        change.addition = std::move(Subscriber(cfg));
-
-        apply_change(std::move(change));
+        if (change.addition)
+        {
+            // apply additions
+            publishers.emplace_back(std::move(change.addition.value()));
+        }
+        else if (change.removal)
+        {
+            // apply removals
+            auto it = std::find_if(
+                publishers.begin(),
+                publishers.end(),
+                [&change](const auto& sub)
+                { return sub.config().shm_name == change.removal.value(); }
+            );
+            if (it != publishers.end())
+            {
+                std::clog << std::format("Unsubscribing: {}", change.removal.value()) << std::endl;
+                publishers.erase(it);
+            }
+        }
     }
 
-    void unsubscribe(const string& shm_name)
+    void apply_changes()
     {
-        posix_ipc::IdSpinLockGuard guard{modify_lock, 2};
-
-        PubSubChange change;
-
-        // remove subscriber
-        change.removal = shm_name;
-
-        apply_change(std::move(change));
+        for (auto& change : change_queue)
+        {
+            apply_change(std::move(change));
+        }
+        change_queue.clear();
     }
 
-    void sync_with_subscriber_configs(vector<SubscriberConfig>& configs)
+    void enqueue_change(PubSubChange&& change)
     {
-        posix_ipc::IdSpinLockGuard guard{modify_lock, 3};
+        change_queue.emplace_back(std::move(change));
+    }
 
-        // remove existing subscribers not in config anymore
-        for (auto& sub : subscribers)
+    void sync_configs(vector<PubSubConfig>& configs, bool first_call)
+    {
+        if (!first_call)
+        {
+            // wait for previous changes to be applied
+            applying_changes.store(true, std::memory_order::release);
+            while (changes_enqueued.load(std::memory_order::acquire))
+            {
+                // previous changes not yet applied
+                std::this_thread::yield();
+            }
+        }
+
+        // remove existing publishers not in config anymore
+        for (auto& sub : publishers)
         {
             bool found = std::any_of(
                 configs.begin(),
@@ -110,7 +133,7 @@ public:
             {
                 PubSubChange change;
                 change.removal = sub.config().shm_name;
-                apply_change(std::move(change));
+                enqueue_change(std::move(change));
             }
         }
 
@@ -118,52 +141,56 @@ public:
         for (auto& cfg : configs)
         {
             bool exists = std::any_of(
-                subscribers.begin(),
-                subscribers.end(),
+                publishers.begin(),
+                publishers.end(),
                 [&cfg](const auto& sub) { return sub.config().shm_name == cfg.shm_name; }
             );
             if (!exists)
             {
                 PubSubChange change;
-                change.addition = std::move(Subscriber(cfg));
-                apply_change(std::move(change));
+                change.addition = std::move(Publisher::from_config(cfg));
+                enqueue_change(std::move(change));
             }
+        }
+
+        if (!first_call)
+        {
+            // signal changes enqueued
+            changes_enqueued.store(true, std::memory_order::release);
+        }
+        else
+        {
+            apply_changes();
         }
     }
 
-    void apply_change(PubSubChange&& change)
-    {
-        if (change.addition)
-        {
-            // apply additions
-            subscribers.emplace_back(std::move(change.addition.value()));
-        }
-        else if (change.removal)
-        {
-            // apply removals
-            auto it = std::find_if(
-                subscribers.begin(),
-                subscribers.end(),
-                [&change](const auto& sub)
-                { return sub.config().shm_name == change.removal.value(); }
-            );
-            if (it != subscribers.end())
-            {
-                // LOG_INFO(logger, "Unsubscribing: {}", change.removal.value());
-                subscribers.erase(it);
-            }
-        }
-    }
-
+    /**
+     * Publishes a message to all subscribers.
+     * Only one thread and the same thread is allowed to call this function.
+     */
     bool publish(const Message& val) noexcept
     {
-        IdSpinLockGuard guard{modify_lock, 4};
+        // TODO: This is not thread-safe. Use a mutex or atomic flag to protect this function.
+        
+        bool reset_change_flags = false;
+        if (applying_changes.load(std::memory_order::acquire))
+        {
+            while (!changes_enqueued.load(std::memory_order::acquire))
+            {
+                // wait for changes to be enqueued from other thread
+                std::this_thread::yield();
+            }
+
+            apply_changes();
+
+            reset_change_flags = true;
+        }
 
         bool published = true;
 
-        for (auto& sub : subscribers)
+        for (auto& publisher : publishers)
         {
-            published &= sub.publish(val); // drops messages if queue is full
+            published &= publisher.publish(val); // drops messages if queue is full
 
             // bool success = sub->publish(val);
             // if (!success)
@@ -193,6 +220,12 @@ public:
 
             //     // consider unsubscribing clients as alternative to dropping messages
             // }
+        }
+
+        if (reset_change_flags)
+        {
+            changes_enqueued.store(false, std::memory_order::release);
+            applying_changes.store(false, std::memory_order::release);
         }
 
         return published;
