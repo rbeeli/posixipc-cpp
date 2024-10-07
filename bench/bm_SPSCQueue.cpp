@@ -8,6 +8,7 @@
 #include <boost/atomic/detail/pause.hpp>
 #include <memory>
 
+#include "utils.hpp"
 #include "posix_ipc/rdtsc.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/queues/spsc/SPSCQueue.hpp"
@@ -37,7 +38,7 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
     auto t = std::thread(
         [&producerDuration, &q, iters, cpu1]
         {
-            posix_ipc::threads::pin(cpu1);
+            try_or_fail(posix_ipc::threads::pin(cpu1));
 
             int64_t data = posix_ipc::rdtsc::read();
             auto size = sizeof(int64_t);
@@ -56,7 +57,7 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
     );
 
     // consumer thread
-    posix_ipc::threads::pin(cpu2);
+    try_or_fail(posix_ipc::threads::pin(cpu2));
 
 
     uint64_t counter = 0;
@@ -76,11 +77,6 @@ void bench(int64_t iters, uint64_t buffer_size, int cpu1, int cpu2, double cycle
             counter = 0;
         }
         counter++;
-
-        // std::cout << fmt::format("consumer: ix_srv = {} i = {}", ix_srv, i) << std::endl;
-
-        // if (srv != i)
-        //     throw std::runtime_error("wrong value returned by consumer. Out of order?");
 
         q->dequeue_commit(msg);
     }

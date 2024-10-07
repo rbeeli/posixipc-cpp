@@ -46,12 +46,12 @@ struct SPSCStorage
     SPSCStorage(SPSCStorage&&) = delete;
     SPSCStorage& operator=(SPSCStorage&&) = delete;
 
-    inline uint64_t buffer_size() const noexcept
+    [[nodiscard]] inline uint64_t buffer_size() const noexcept
     {
         return storage_size - BUFFER_OFFSET;
     }
 
-    inline byte* buffer() noexcept
+    [[nodiscard]] inline byte* buffer() noexcept
     {
         return reinterpret_cast<byte*>(this) + BUFFER_OFFSET;
     }

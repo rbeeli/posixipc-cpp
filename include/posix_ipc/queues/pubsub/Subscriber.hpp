@@ -5,6 +5,7 @@
 #include <format>
 #include <iostream>
 #include <memory>
+#include <expected>
 
 #include "posix_ipc/SharedMemory.hpp"
 #include "posix_ipc/queues/Message.hpp"
@@ -20,6 +21,8 @@ namespace pubsub
 using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
 using std::unique_ptr;
+using std::expected;
+using std::unexpected;
 
 class Subscriber
 {
@@ -28,10 +31,6 @@ private:
     unique_ptr<SharedMemory> shm_;
     unique_ptr<SPSCQueue> queue_; // resides in shared memory
 
-public:
-    time_point<high_resolution_clock> last_drop_time;
-    size_t drop_count = 0;
-
     Subscriber(
         const PubSubConfig& config, unique_ptr<SharedMemory> shm, unique_ptr<SPSCQueue> queue
     ) noexcept
@@ -39,32 +38,37 @@ public:
     {
     }
 
-    static Subscriber from_config(const PubSubConfig& config)
+public:
+    time_point<high_resolution_clock> last_drop_time;
+    size_t drop_count = 0;
+
+    [[nodiscard]] static expected<Subscriber, string> from_config(const PubSubConfig& config) noexcept
     {
         if (!SharedMemory::exists(config.shm_name))
         {
-            throw std::runtime_error(
-                std::format(
-                    "Cannot create PubSub subscriber, shared memory [{}] does not exist",
-                    config.shm_name
-                )
+            auto msg = std::format(
+                "Cannot create PubSub subscriber, shared memory [{}] does not exist",
+                config.shm_name
             );
+            return unexpected{msg};
         }
 
         // open shared memory
-        unique_ptr<SharedMemory> shm = std::make_unique<SharedMemory>(config.shm_name);
+        auto shm_res = SharedMemory::open(config.shm_name);
+        if (!shm_res.has_value())
+            return unexpected{shm_res.error().message};
+        unique_ptr<SharedMemory> shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
 
         // check if size matches
         if (config.storage_size_bytes != shm->size())
         {
-            throw std::runtime_error(
-                std::format(
-                    "Shared memory [{}] size mismatch, expected {}, got {}",
-                    config.shm_name,
-                    config.storage_size_bytes,
-                    shm->size()
-                )
+            auto msg = std::format(
+                "Shared memory [{}] size mismatch, expected {}, got {}",
+                config.shm_name,
+                config.storage_size_bytes,
+                shm->size()
             );
+            return unexpected{msg};
         }
 
         // initialize queue in shared memory
@@ -111,7 +115,7 @@ public:
         return *this;
     }
 
-    inline const PubSubConfig& config() const noexcept
+    [[nodiscard]] inline const PubSubConfig& config() const noexcept
     {
         return config_;
     }
@@ -126,17 +130,17 @@ public:
         queue_->dequeue_commit(message);
     }
 
-    __attribute__((always_inline)) inline MessageView dequeue_begin() noexcept
+    [[nodiscard]] __attribute__((always_inline)) inline MessageView dequeue_begin() noexcept
     {
         return queue_->dequeue_begin();
     }
 
-    __attribute__((always_inline)) inline bool is_empty() const noexcept
+    [[nodiscard]] __attribute__((always_inline)) inline bool is_empty() const noexcept
     {
         return queue_->is_empty();
     }
 
-    __attribute__((always_inline)) inline bool can_dequeue() const noexcept
+    [[nodiscard]] __attribute__((always_inline)) inline bool can_dequeue() const noexcept
     {
         return queue_->can_dequeue();
     }

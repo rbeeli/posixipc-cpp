@@ -11,6 +11,7 @@
 #include <boost/lockfree/spsc_queue.hpp>
 #include <rigtorp/SPSCQueue.h>
 
+#include "utils.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/queues/spsc/SPSCQueue.hpp"
 // #include "posix_ipc/queues/spsc/SPSCQueueStatic.hpp"
@@ -22,7 +23,7 @@ const size_t queue_size = 100'000;
 
 static void boost_spsc_queue_stack(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     boost::lockfree::spsc_queue<element_type, boost::lockfree::capacity<queue_size>> queue;
 
@@ -47,7 +48,7 @@ static void boost_spsc_queue_stack(benchmark::State& state)
 
 static void boost_spsc_queue_heap(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     auto queue =
         new boost::lockfree::spsc_queue<element_type, boost::lockfree::capacity<queue_size>>();
@@ -75,7 +76,7 @@ static void boost_spsc_queue_heap(benchmark::State& state)
 
 static void rigtorp_SPSCQueue_stack(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     rigtorp::SPSCQueue<element_type> spsc(queue_size);
 
@@ -100,7 +101,7 @@ static void rigtorp_SPSCQueue_stack(benchmark::State& state)
 
 static void rigtorp_SPSCQueue_heap(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     auto* spsc = new rigtorp::SPSCQueue<element_type>(queue_size);
 
@@ -127,7 +128,7 @@ static void rigtorp_SPSCQueue_heap(benchmark::State& state)
 
 static void moodycamel_ReaderWriterQueue_stack(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     moodycamel::ReaderWriterQueue<element_type> rwQueue(queue_size);
 
@@ -152,7 +153,7 @@ static void moodycamel_ReaderWriterQueue_stack(benchmark::State& state)
 
 static void moodycamel_ReaderWriterQueue_heap(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     auto* rwQueue = new moodycamel::ReaderWriterQueue<element_type>(queue_size);
 
@@ -179,7 +180,7 @@ static void moodycamel_ReaderWriterQueue_heap(benchmark::State& state)
 
 // static void own_SPSCQueueStatic_heap(benchmark::State& state)
 // {
-//     posix_ipc::threads::pin(2);
+//     try_or_fail(posix_ipc::threads::pin(2));
 
 //     const uint64_t buffer_size = queue_size * sizeof(element_type);
 //     const uint64_t buffer_offset = sizeof(messaging::SPSCStorageStatic);
@@ -214,7 +215,7 @@ static void moodycamel_ReaderWriterQueue_heap(benchmark::State& state)
 
 static void own_SPSCQueue_heap(benchmark::State& state)
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     const uint64_t buffer_size = queue_size * sizeof(element_type);
     const uint64_t storage_size = buffer_size + posix_ipc::queues::spsc::SPSCStorage::BUFFER_OFFSET;
@@ -230,11 +231,10 @@ static void own_SPSCQueue_heap(benchmark::State& state)
         for (size_t i = 0; i < queue_size; ++i)
         {
             posix_ipc::queues::Message msg(reinterpret_cast<byte*>(&i), sizeof(element_type), false);
-            queue->enqueue(msg);
+            [[maybe_unused]] auto _ = queue->enqueue(msg);
             if (auto msg2 = queue->dequeue_begin(); !msg2.empty())
             {
-                auto el_ptr = msg2.payload_ptr<element_type>();
-                sum += *el_ptr;
+                sum += *msg2.payload_ptr<element_type>();
                 queue->dequeue_commit(msg2);
             }
         }

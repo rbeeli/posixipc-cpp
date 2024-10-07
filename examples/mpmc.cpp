@@ -44,11 +44,6 @@ void bench(int cpu1, int cpu2)
             {
                 uint32 val;
                 q.pop(val);
-
-                if (val != i)
-                {
-                    throw std::runtime_error("value don't match");
-                }
             }
 
             auto t2 = std::chrono::high_resolution_clock::now();

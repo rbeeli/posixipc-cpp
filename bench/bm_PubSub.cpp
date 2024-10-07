@@ -6,6 +6,7 @@
 #include <vector>
 #include <format>
 
+#include "utils.hpp"
 #include "posix_ipc/rdtsc.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/SharedMemory.hpp"
@@ -27,8 +28,8 @@ void bench(
     auto p = std::jthread(
         [&producer_duration, &pub_sub, iters, cpu1]
         {
-            posix_ipc::threads::pin(cpu1);
-            posix_ipc::threads::set_name("producer");
+            try_or_fail(posix_ipc::threads::pin(cpu1));
+            try_or_fail(posix_ipc::threads::set_name("producer"));
 
             int64_t data = posix_ipc::rdtsc::read();
             auto size = sizeof(int64_t);
@@ -51,8 +52,8 @@ void bench(
     auto c = std::jthread(
         [&consumer_duration, &subscriber, cycles_per_ns, iters, cpu2]
         {
-            posix_ipc::threads::pin(cpu2);
-            posix_ipc::threads::set_name("consumer");
+            try_or_fail(posix_ipc::threads::pin(cpu2));
+            try_or_fail(posix_ipc::threads::set_name("consumer"));
 
             uint64_t counter = 0;
             auto t1 = high_resolution_clock::now();
@@ -115,7 +116,13 @@ int main(int argc, char* argv[])
     pub_sub.sync_configs(sub_cfgs, true);
 
     // Create Subscriber instance using shared memory
-    Subscriber subscriber = Subscriber::from_config(sub_cfg);
+    auto sub_cfg_res = Subscriber::from_config(sub_cfg);
+    if (!sub_cfg_res.has_value())
+    {
+        std::cerr << "Subscriber::from_config error: " << sub_cfg_res.error() << std::endl;
+        return 1;
+    }
+    Subscriber& subscriber = sub_cfg_res.value();
 
     for (int i = 0; i < 10; ++i)
     {

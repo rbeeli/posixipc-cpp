@@ -12,11 +12,28 @@
 #include <iostream>
 #include <string>
 #include <format>
+#include <expected>
 
 namespace posix_ipc
 {
 using std::string;
 using std::byte;
+using std::expected;
+using std::unexpected;
+
+enum class SharedMemoryErrorCode : int
+{
+    OPEN_FAILED = 1,
+    TRUNCATE_FAILED = 2,
+    MMAP_FAILED = 3,
+    UNLINK_FAILED = 4,
+};
+
+struct SharedMemoryError
+{
+    SharedMemoryErrorCode code;
+    string message;
+};
 
 class SharedMemory
 {
@@ -26,6 +43,12 @@ private:
     int shm_fd_;
     byte* shm_ptr_;
     bool created_;
+
+private:
+    SharedMemory(string name, const size_t size, int fd, byte* ptr, bool created)
+        : shm_name_(name), size_(size), shm_fd_(fd), shm_ptr_(ptr), created_(created)
+    {
+    }
 
 public:
     inline string name() const
@@ -43,49 +66,44 @@ public:
         return size_;
     }
 
-    /**
-     * Opens an existing shared memory region.
-     */
-    SharedMemory(string name) : SharedMemory(name, false, 0)
+    static expected<SharedMemory, SharedMemoryError> open(string name)
     {
+        return open_or_create(name, 0, false);
     }
 
-    /**
-     * Opens or creates a shared memory region.
-     * If `create` is true, the shared memory region is created with the specified size.
-     * If `create` is false, the shared memory region is opened (must exist), and the size is read.
-     */
-    SharedMemory(string name, const bool create, const size_t size = 0)
-        : shm_name_(name), size_(size), shm_ptr_(nullptr), created_(create)
+    static expected<SharedMemory, SharedMemoryError> open_or_create(
+        string name, const size_t size, bool create = true
+    )
     {
-        // create shared memory file handle
-        auto shm_flags = create ? O_CREAT | O_EXCL | O_RDWR | O_TRUNC : O_RDWR;
+        auto created_ = false;
+        byte* shm_ptr_ = nullptr;
+        size_t size_ = 0;
+
         auto shm_mode = 0666;
-        shm_fd_ = ::shm_open(shm_name_.c_str(), shm_flags, shm_mode);
+        auto shm_flags = create ? O_CREAT | O_EXCL | O_RDWR | O_TRUNC : O_RDWR;
+        auto shm_fd_ = ::shm_open(name.c_str(), shm_flags, shm_mode);
         if (shm_fd_ == -1)
         {
             if (errno == EEXIST)
             {
                 // open it without O_EXCL, already exists
                 shm_flags = shm_flags & ~O_EXCL;
-                shm_fd_ = ::shm_open(shm_name_.c_str(), shm_flags, shm_mode);
+                shm_fd_ = ::shm_open(name.c_str(), shm_flags, shm_mode);
                 if (shm_fd_ == -1)
                 {
-                    throw std::runtime_error(
-                        std::format(
-                            "Failed to open shared memory [{}]: {}", shm_name_, std::strerror(errno)
-                        )
+                    auto msg = std::format(
+                        "Failed to open shared memory [{}]: {}", name, std::strerror(errno)
                     );
+                    return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
                 }
                 created_ = false;
             }
             else
             {
-                throw std::runtime_error(
-                    std::format(
-                        "Failed to open shared memory [{}]: {}", shm_name_, std::strerror(errno)
-                    )
+                auto msg = std::format(
+                    "Failed to open shared memory [{}]: {}", name, std::strerror(errno)
                 );
+                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
             }
         }
 
@@ -94,27 +112,22 @@ public:
             // create shared memory region
             if (size <= 0)
             {
-                throw std::logic_error(
-                    std::format(
-                        "Shared memory [{}] size parameter must be greater than 0, got {}.",
-                        shm_name_,
-                        size
-                    )
+                auto msg = std::format(
+                    "Shared memory [{}] size parameter must be greater than 0, got {}.", name, size
                 );
+                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
             }
 
-            std::clog << std::format("Creating shared memory [{}] of size {} bytes", shm_name_, size) << std::endl;
+            std::clog << std::format("Creating shared memory [{}] of size {} bytes", name, size)
+                      << std::endl;
 
             if (::ftruncate(shm_fd_, size) == -1)
             {
                 ::close(shm_fd_);
-                throw std::runtime_error(
-                    std::format(
-                        "ftruncate call for shared memory [{}] failed: {}",
-                        shm_name_,
-                        std::strerror(errno)
-                    )
+                auto msg = std::format(
+                    "ftruncate call for shared memory [{}] failed: {}", name, std::strerror(errno)
                 );
+                return unexpected{SharedMemoryError(SharedMemoryErrorCode::TRUNCATE_FAILED, msg)};
             }
         }
         else
@@ -124,17 +137,15 @@ public:
             if (::fstat(shm_fd_, &s) == -1)
             {
                 ::close(shm_fd_);
-                throw std::runtime_error(
-                    std::format(
-                        "fstat call for shared memory [{}] failed: {}",
-                        shm_name_,
-                        std::strerror(errno)
-                    )
+                auto msg = std::format(
+                    "fstat call for shared memory [{}] failed: {}", name, std::strerror(errno)
                 );
+                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
             }
             size_ = s.st_size;
 
-            std::clog << std::format("Opened shared memory [{}] of size {} bytes", shm_name_, size_) << std::endl;
+            // std::clog << std::format("Opened shared memory [{}] of size {} bytes", name, size_)
+            //           << std::endl;
         }
 
         // map the shared memory region into the address space of the process
@@ -145,12 +156,13 @@ public:
         if (shm_ptr_ == MAP_FAILED)
         {
             ::close(shm_fd_);
-            throw std::runtime_error(
-                std::format(
-                    "Failed to mmap shared memory [{}]. Error: {}", shm_name_, std::strerror(errno)
-                )
+            auto msg = std::format(
+                "Failed to mmap shared memory [{}]. Error: {}", name, std::strerror(errno)
             );
+            return unexpected{SharedMemoryError(SharedMemoryErrorCode::MMAP_FAILED, msg)};
         }
+
+        return SharedMemory(name, size_, shm_fd_, shm_ptr_, created_);
     }
 
     ~SharedMemory()

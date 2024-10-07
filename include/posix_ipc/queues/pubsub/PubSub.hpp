@@ -62,7 +62,7 @@ public:
         return *this;
     }
 
-    void sync_configs(vector<PubSubConfig>& configs, bool first_call)
+    expected<void, string> sync_configs(vector<PubSubConfig>& configs, bool first_call)
     {
         lock_guard_type lock(lock_obj);
 
@@ -93,12 +93,17 @@ public:
             if (!exists)
             {
                 PubSubChange change;
-                change.addition = std::move(Publisher::from_config(cfg));
+                auto cfg_res = Publisher::from_config(cfg);
+                if (!cfg_res.has_value())
+                    return unexpected{cfg_res.error()};
+                change.addition = std::move(cfg_res.value());
                 change_queue.emplace_back(std::move(change));
             }
         }
 
         apply_changes();
+
+        return {}; // success
     }
 
     /**
@@ -150,16 +155,16 @@ public:
     }
 
 private:
-    // Publisher& get_publisher(const string& shm_name)
+    // expected<Publisher&, string> get_publisher(const string& shm_name)
     // {
     //     for (auto& pub : publishers)
     //     {
     //         if (pub.config().shm_name == shm_name)
     //             return pub;
     //     }
-    //     throw std::runtime_error(
+    //     return unexpected{
     //         std::format("Publisher for shared memory '{}' not found", shm_name)
-    //     );
+    //     };
     // }
 
     void apply_change(PubSubChange&& change)

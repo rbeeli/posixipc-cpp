@@ -5,6 +5,7 @@
 #include <format>
 #include <iostream>
 #include <memory>
+#include <expected>
 
 #include "posix_ipc/SharedMemory.hpp"
 #include "posix_ipc/queues/Message.hpp"
@@ -20,6 +21,8 @@ namespace pubsub
 using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
 using std::unique_ptr;
+using std::expected;
+using std::unexpected;
 
 class Publisher
 {
@@ -39,7 +42,7 @@ public:
     {
     }
 
-    static Publisher from_config(const PubSubConfig& config)
+    [[nodiscard]] static expected<Publisher, string> from_config(const PubSubConfig& config) noexcept
     {
         unique_ptr<SharedMemory> shm = nullptr;
 
@@ -47,7 +50,10 @@ public:
         bool recreate = false;
         if (SharedMemory::exists(config.shm_name))
         {
-            shm = std::make_unique<SharedMemory>(config.shm_name);
+            auto shm_res = SharedMemory::open(config.shm_name);
+            if (!shm_res.has_value())
+                return unexpected{shm_res.error().message};
+            shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
 
             // check if size matches
             if (config.storage_size_bytes != shm->size())
@@ -75,7 +81,14 @@ public:
 
         // recreate shared memory if necessary
         if (recreate)
-            shm = std::make_unique<SharedMemory>(config.shm_name, true, config.storage_size_bytes);
+        {
+            auto shm_res = SharedMemory::open_or_create(
+                config.shm_name, config.storage_size_bytes, true
+            );
+            if (!shm_res.has_value())
+                return unexpected{shm_res.error().message};
+            shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
+        }
 
         // initialize queue in shared memory
         SPSCStorage* storage;
@@ -131,12 +144,12 @@ public:
         return *this;
     }
 
-    inline const PubSubConfig& config() const noexcept
+    [[nodiscard]] inline const PubSubConfig& config() const noexcept
     {
         return config_;
     }
 
-    __attribute__((always_inline)) inline bool is_empty() const noexcept
+    [[nodiscard]] __attribute__((always_inline)) inline bool is_empty() const noexcept
     {
         return queue_->is_empty();
     }

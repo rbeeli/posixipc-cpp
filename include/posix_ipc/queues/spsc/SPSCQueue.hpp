@@ -109,12 +109,12 @@ public:
                storage_->write_ix.load(std::memory_order::acquire);
     }
 
-    inline size_t buffer_size() const noexcept
+    [[nodiscard]] inline size_t buffer_size() const noexcept
     {
         return buffer_size_;
     }
 
-    inline size_t max_message_size() const noexcept
+    [[nodiscard]] inline size_t max_message_size() const noexcept
     {
         return max_message_size_;
     }
@@ -123,7 +123,7 @@ public:
      * Write the message to the queue.
      * The payload is copied onto the queue.
      */
-    bool enqueue(const Message& val) noexcept
+    [[nodiscard]] bool enqueue(const Message& val) noexcept
     {
         assert(val.payload_size() > 0 && "Message size must be > 0");
         assert(
@@ -177,7 +177,7 @@ public:
         return true; // success
     }
 
-    MessageView dequeue_begin() noexcept
+    [[nodiscard]] MessageView dequeue_begin() noexcept
     {
         // on wrap-around, we need to recheck the read index.
         // use goto/jump instead of function call to avoid stack overhead.

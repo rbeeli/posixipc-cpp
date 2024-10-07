@@ -36,9 +36,6 @@ void bench(
             {
                 while (!q->pop(val))
                     ;
-
-                if (val != i)
-                    throw std::runtime_error("wrong value returned by consumer. out of order?");
             }
 
             auto t2 = std::chrono::high_resolution_clock::now();

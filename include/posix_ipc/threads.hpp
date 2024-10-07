@@ -1,93 +1,118 @@
 #pragma once
 
-#include <thread>
 #include <pthread.h>
+#include <cstring>
+#include <thread>
 #include <string>
+#include <string_view>
+#include <expected>
+#include <format>
+
+#ifndef THREAD_NAME_MAX
+#define THREAD_NAME_MAX 15
+#endif
 
 namespace posix_ipc
 {
 namespace threads
 {
 using std::string;
+using std::string_view;
+using std::expected;
+using std::unexpected;
 
 /**
  * Pin the passed POSIX thread to a specific CPU.
  */
-void pin(pthread_t thread, int cpu)
+[[nodiscard]] expected<void, string> pin(pthread_t thread, int cpu) noexcept
 {
     if (cpu < 0)
-        return;
+        return {}; // no pinning
+
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(cpu, &cpuset);
+
     if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) == -1)
     {
-        perror("pthread_setaffinity_np");
-        exit(1);
+        auto msg = std::format("Failed to pin thread to CPU {}: {}", cpu, std::strerror(errno));
+        return unexpected{msg};
     }
+
+    return {}; // success
 }
 
 /**
  * Pin the passed POSIX thread to a specific CPU.
  */
-inline void pin(std::jthread& thread, int cpu)
+[[nodiscard]] expected<void, string> pin(std::jthread& thread, int cpu) noexcept
 {
-    pin(thread.native_handle(), cpu);
+    return pin(thread.native_handle(), cpu);
 }
 
 /**
  * Pin the passed POSIX thread to a specific CPU.
  */
-inline void pin(std::thread& thread, int cpu)
+[[nodiscard]] expected<void, string> pin(std::thread& thread, int cpu) noexcept
 {
-    pin(thread.native_handle(), cpu);
+    return pin(thread.native_handle(), cpu);
 }
 
 /**
  * Pin the current thread to a specific CPU.
  */
-inline void pin(int cpu)
+[[nodiscard]] expected<void, string> pin(int cpu)
 {
-    pin(pthread_self(), cpu);
+    return pin(pthread_self(), cpu);
 }
 
 /**
  * Set the name of the passed POSIX thread.
  */
-void set_name(pthread_t thread, const string name)
+[[nodiscard]] expected<void, string> set_name(pthread_t thread, string_view name) noexcept
 {
-    if (name.size() > 15)
-        throw std::runtime_error("Thread name too long, max 15 characters allowed: " + name);
-
-    if (pthread_setname_np(thread, name.c_str()) == -1)
+    if (name.size() > THREAD_NAME_MAX)
     {
-        perror("pthread_setname_np");
-        exit(1);
+        return unexpected{std::format(
+            "Thread name too long, max {} characters allowed: {}", THREAD_NAME_MAX, name
+        )};
     }
+
+    if (pthread_setname_np(thread, name.data()) == -1)
+    {
+        // perror("pthread_setname_np");
+        return unexpected{
+            std::format("Failed to set thread name: {}. Error: {}", name, std::strerror(errno))
+        };
+    }
+
+    return {}; // success
 }
 
 /**
  * Set the name of the passed POSIX std::jthread.
  */
-inline void set_name(std::jthread& thread, const string name)
+[[nodiscard]] inline expected<void, string> set_name(
+    std::jthread& thread, string_view name
+) noexcept
 {
-    set_name(thread.native_handle(), name.c_str());
+    return set_name(thread.native_handle(), name.data());
 }
 
 /**
  * Set the name of the passed POSIX std::jthread.
  */
-inline void set_name(std::thread& thread, const string name)
+[[nodiscard]] inline expected<void, string> set_name(std::thread& thread, string_view name) noexcept
 {
-    set_name(thread.native_handle(), name.c_str());
+    return set_name(thread.native_handle(), name.data());
 }
 
 /**
  * Set the name of the current POSIX thread.
  */
-inline void set_name(const string name)
+[[nodiscard]] inline expected<void, string> set_name(string_view name) noexcept
 {
-    set_name(pthread_self(), name.c_str());
+    return set_name(pthread_self(), name.data());
 }
 } // namespace threads
 } // namespace posix_ipc

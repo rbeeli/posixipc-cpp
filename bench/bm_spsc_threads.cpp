@@ -18,6 +18,7 @@
 #include <readerwriterqueue/readerwriterqueue.h>
 #include <rigtorp/SPSCQueue.h>
 
+#include "utils.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/queues/spsc/SPSCQueue.hpp"
 
@@ -45,7 +46,7 @@ static void bm_runner(
     benchmark::State& state
 )
 {
-    posix_ipc::threads::pin(2);
+    try_or_fail(posix_ipc::threads::pin(2));
 
     for (auto _ : state)
     {
@@ -55,7 +56,7 @@ static void bm_runner(
         std::thread consumer_thread(
             [&consumer, &ready]
             {
-                posix_ipc::threads::pin(3);
+                try_or_fail(posix_ipc::threads::pin(3));
 
                 ready = true;
 
