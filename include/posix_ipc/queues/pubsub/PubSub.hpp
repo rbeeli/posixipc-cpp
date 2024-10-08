@@ -62,7 +62,7 @@ public:
         return *this;
     }
 
-    expected<void, string> sync_configs(vector<PubSubConfig>& configs, bool first_call)
+    expected<void, string> sync_configs(vector<PubSubConfig>& configs)
     {
         lock_guard_type lock(lock_obj);
 

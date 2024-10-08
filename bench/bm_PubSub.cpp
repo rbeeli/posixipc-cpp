@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
 
     // Create PubSub instance
     PubSub pub_sub;
-    pub_sub.sync_configs(sub_cfgs, true);
+    pub_sub.sync_configs(sub_cfgs);
 
     // Create Subscriber instance using shared memory
     auto sub_cfg_res = Subscriber::from_config(sub_cfg);
