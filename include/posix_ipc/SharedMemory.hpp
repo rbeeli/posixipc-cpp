@@ -86,7 +86,7 @@ public:
                         std::strerror(errno),
                         errno
                     );
-                    return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
+                    return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
                 }
                 created_ = false;
             }
@@ -100,7 +100,7 @@ public:
                     std::strerror(errno),
                     errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
             }
         }
 
@@ -112,7 +112,7 @@ public:
                 auto msg = std::format(
                     "Shared memory [{}] size parameter must be greater than 0, got {}.", name, size
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
             }
 
             std::clog << std::format("Creating shared memory [{}] of size {} bytes", name, size)
@@ -124,7 +124,7 @@ public:
                 auto msg = std::format(
                     "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_TRUNCATE_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_truncate_failed, msg)};
             }
         }
         else
@@ -137,7 +137,7 @@ public:
                 auto msg = std::format(
                     "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_FSTAT_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_fstat_failed, msg)};
             }
             size = s.st_size;
 
@@ -156,7 +156,7 @@ public:
             auto msg = std::format(
                 "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
             );
-            return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_MMAP_FAILED, msg)};
+            return unexpected{PosixIpcError(PosixIpcErrorCode::shm_mmap_failed, msg)};
         }
 
         return SharedMemory(name, size, shm_fd_, shm_ptr_, created_);

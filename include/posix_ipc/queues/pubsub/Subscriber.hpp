@@ -53,7 +53,7 @@ public:
                 "Cannot create PubSub subscriber, shared memory [{}] does not exist.",
                 config.shm_name
             );
-            return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
+            return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
         }
 
         // open shared memory
@@ -71,7 +71,7 @@ public:
                 config.storage_size_bytes,
                 shm->size()
             );
-            return unexpected{PosixIpcError(PosixIpcErrorCode::PUBSUB_SHM_SIZE_MISMATCH, msg)};
+            return unexpected{PosixIpcError(PosixIpcErrorCode::pubsub_shm_size_mismatch, msg)};
         }
 
         // initialize queue in shared memory

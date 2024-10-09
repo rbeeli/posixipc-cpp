@@ -32,7 +32,7 @@ enum class QueueFullPolicy : uint8_t
     // else if (s == "BLOCK")
     //     return T::BLOCK;
     return unexpected{PosixIpcError(
-        PosixIpcErrorCode::PUBSUB_INVALID_QUEUE_FULL_POLICY,
+        PosixIpcErrorCode::pubsub_invalid_queue_full_policy,
         std::format("Unknown queue full policy: {}", s)
     )};
 }

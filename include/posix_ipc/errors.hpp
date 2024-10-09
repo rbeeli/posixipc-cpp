@@ -7,6 +7,7 @@
 #include <source_location>
 #include <format>
 #include <expected>
+#include <system_error>
 
 namespace posix_ipc
 {
@@ -15,18 +16,22 @@ namespace posix_ipc
  */
 enum class PosixIpcErrorCode
 {
-    SUCCESS = 0,
-    SHM_OPEN_FAILED,
-    SHM_FSTAT_FAILED,
-    SHM_TRUNCATE_FAILED,
-    SHM_MMAP_FAILED,
-    SHM_UNLINK_FAILED,
-    THREAD_SET_AFFINITY_FAILED,
-    THREAD_SET_NAME_FAILED,
-    PUBSUB_INVALID_QUEUE_FULL_POLICY,
-    PUBSUB_SHM_SIZE_MISMATCH
+    success = 0,
+    shm_open_failed,
+    shm_fstat_failed,
+    shm_truncate_failed,
+    shm_mmap_failed,
+    shm_unlink_failed,
+    thread_set_affinity_failed,
+    thread_set_name_failed,
+    pubsub_invalid_queue_full_policy,
+    pubsub_shm_size_mismatch
 };
 
+/**
+ * Error category for POSIX IPC library error codes
+ * based on `std::error_category`.
+ */
 class PosixIpcErrorCategory : public std::error_category
 {
 public:
@@ -39,26 +44,26 @@ public:
     {
         switch (static_cast<PosixIpcErrorCode>(ev))
         {
-            case PosixIpcErrorCode::SHM_OPEN_FAILED:
-                return "Failed to open shared memory (shm_open)";
-            case PosixIpcErrorCode::SHM_FSTAT_FAILED:
-                return "Failed to fstat shared memory (fstat)";
-            case PosixIpcErrorCode::SHM_TRUNCATE_FAILED:
-                return "Failed to truncate shared memory (ftruncate)";
-            case PosixIpcErrorCode::SHM_MMAP_FAILED:
-                return "Failed to map shared memory (mmap)";
-            case PosixIpcErrorCode::SHM_UNLINK_FAILED:
-                return "Failed to unlink shared memory (shm_unlink)";
-            case PosixIpcErrorCode::THREAD_SET_AFFINITY_FAILED:
-                return "Failed to set CPU affinity of thread";
-            case PosixIpcErrorCode::THREAD_SET_NAME_FAILED:
-                return "Failed to set name of thread";
-            case PosixIpcErrorCode::PUBSUB_INVALID_QUEUE_FULL_POLICY:
-                return "Invalid queue full policy (enum QueueFullPolicy)";
-            case PosixIpcErrorCode::PUBSUB_SHM_SIZE_MISMATCH:
-                return "The configured shared memory size does not match the actual size";
+            case PosixIpcErrorCode::shm_open_failed:
+                return "Failed to open shared memory (shm_open).";
+            case PosixIpcErrorCode::shm_fstat_failed:
+                return "Failed to fstat shared memory (fstat).";
+            case PosixIpcErrorCode::shm_truncate_failed:
+                return "Failed to truncate shared memory (ftruncate).";
+            case PosixIpcErrorCode::shm_mmap_failed:
+                return "Failed to map shared memory (mmap).";
+            case PosixIpcErrorCode::shm_unlink_failed:
+                return "Failed to unlink shared memory (shm_unlink).";
+            case PosixIpcErrorCode::thread_set_affinity_failed:
+                return "Failed to set CPU affinity of thread.";
+            case PosixIpcErrorCode::thread_set_name_failed:
+                return "Failed to set name of thread.";
+            case PosixIpcErrorCode::pubsub_invalid_queue_full_policy:
+                return "Invalid queue full policy (enum QueueFullPolicy).";
+            case PosixIpcErrorCode::pubsub_shm_size_mismatch:
+                return "The configured shared memory size does not match the actual size.";
             default:
-                return "Unknown error";
+                return "Unknown POSIX IPC error code.";
         }
     }
 };
@@ -81,16 +86,7 @@ struct PosixIpcError
 
     PosixIpcError(
         PosixIpcErrorCode code,
-        const std::string& msg,
-        const std::source_location& loc = std::source_location::current()
-    ) noexcept
-        : code(code), message(msg), location(loc)
-    {
-    }
-
-    PosixIpcError(
-        PosixIpcErrorCode code,
-        std::string&& msg,
+        std::string msg,
         const std::source_location& loc = std::source_location::current()
     ) noexcept
         : code(code), message(std::move(msg)), location(loc)
@@ -120,11 +116,6 @@ struct PosixIpcError
             message
         );
     }
-
-    // inline PosixIpcError extend_message(const std::string& msg) const
-    // {
-    //     return PosixIpcError(code, message + "\n" + msg, location);
-    // }
 };
 
 // Concept to define exception-like types

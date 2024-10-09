@@ -38,7 +38,7 @@ using std::unexpected;
     if (pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset) == -1)
     {
         auto msg = std::format("cpu={}, strerror={}, errno={}", cpu, std::strerror(errno), errno);
-        return unexpected{PosixIpcError(PosixIpcErrorCode::THREAD_SET_AFFINITY_FAILED, msg)};
+        return unexpected{PosixIpcError(PosixIpcErrorCode::thread_set_affinity_failed, msg)};
     }
 
     return {}; // success
@@ -78,7 +78,7 @@ using std::unexpected;
         auto msg = std::format(
             "Thread name too long, max. {} chars allowed, got {}.", THREAD_NAME_MAX, name
         );
-        return unexpected{PosixIpcError(PosixIpcErrorCode::THREAD_SET_NAME_FAILED, msg)};
+        return unexpected{PosixIpcError(PosixIpcErrorCode::thread_set_name_failed, msg)};
     }
 
     if (pthread_setname_np(thread, name.data()) == -1)
@@ -86,7 +86,7 @@ using std::unexpected;
         auto msg = std::format(
             "Failed to set thread name={}, strerror={}, errno={}", name, std::strerror(errno), errno
         );
-        return unexpected{PosixIpcError(PosixIpcErrorCode::THREAD_SET_NAME_FAILED, msg)};
+        return unexpected{PosixIpcError(PosixIpcErrorCode::thread_set_name_failed, msg)};
     }
 
     return {}; // success
