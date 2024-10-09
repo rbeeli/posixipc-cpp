@@ -14,26 +14,14 @@
 #include <format>
 #include <expected>
 
+#include "posix_ipc/errors.hpp"
+
 namespace posix_ipc
 {
 using std::string;
 using std::byte;
 using std::expected;
 using std::unexpected;
-
-enum class SharedMemoryErrorCode : int
-{
-    OPEN_FAILED = 1,
-    TRUNCATE_FAILED = 2,
-    MMAP_FAILED = 3,
-    UNLINK_FAILED = 4,
-};
-
-struct SharedMemoryError
-{
-    SharedMemoryErrorCode code;
-    string message;
-};
 
 class SharedMemory
 {
@@ -66,18 +54,17 @@ public:
         return size_;
     }
 
-    static expected<SharedMemory, SharedMemoryError> open(string name)
+    [[nodiscard]] static expected<SharedMemory, PosixIpcError> open(string name)
     {
         return open_or_create(name, 0, false);
     }
 
-    static expected<SharedMemory, SharedMemoryError> open_or_create(
-        string name, const size_t size, bool create = true
+    [[nodiscard]] static expected<SharedMemory, PosixIpcError> open_or_create(
+        string name, size_t size, bool create = true
     )
     {
         auto created_ = false;
         byte* shm_ptr_ = nullptr;
-        size_t size_ = 0;
 
         auto shm_mode = 0666;
         auto shm_flags = create ? O_CREAT | O_EXCL | O_RDWR | O_TRUNC : O_RDWR;
@@ -92,18 +79,28 @@ public:
                 if (shm_fd_ == -1)
                 {
                     auto msg = std::format(
-                        "Failed to open shared memory [{}]: {}", name, std::strerror(errno)
+                        "name={}, create={}, size={}: strerror={}, errno={}",
+                        name,
+                        create,
+                        size,
+                        std::strerror(errno),
+                        errno
                     );
-                    return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
+                    return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
                 }
                 created_ = false;
             }
             else
             {
                 auto msg = std::format(
-                    "Failed to open shared memory [{}]: {}", name, std::strerror(errno)
+                    "name={}, create={}, size={}, strerror={}, errno={}",
+                    name,
+                    create,
+                    size,
+                    std::strerror(errno),
+                    errno
                 );
-                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
             }
         }
 
@@ -115,7 +112,7 @@ public:
                 auto msg = std::format(
                     "Shared memory [{}] size parameter must be greater than 0, got {}.", name, size
                 );
-                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_OPEN_FAILED, msg)};
             }
 
             std::clog << std::format("Creating shared memory [{}] of size {} bytes", name, size)
@@ -125,9 +122,9 @@ public:
             {
                 ::close(shm_fd_);
                 auto msg = std::format(
-                    "ftruncate call for shared memory [{}] failed: {}", name, std::strerror(errno)
+                    "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{SharedMemoryError(SharedMemoryErrorCode::TRUNCATE_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_TRUNCATE_FAILED, msg)};
             }
         }
         else
@@ -138,11 +135,11 @@ public:
             {
                 ::close(shm_fd_);
                 auto msg = std::format(
-                    "fstat call for shared memory [{}] failed: {}", name, std::strerror(errno)
+                    "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{SharedMemoryError(SharedMemoryErrorCode::OPEN_FAILED, msg)};
+                return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_FSTAT_FAILED, msg)};
             }
-            size_ = s.st_size;
+            size = s.st_size;
 
             // std::clog << std::format("Opened shared memory [{}] of size {} bytes", name, size_)
             //           << std::endl;
@@ -151,18 +148,18 @@ public:
         // map the shared memory region into the address space of the process
         //  | MAP_HUGETLB
         shm_ptr_ = reinterpret_cast<byte*>(
-            ::mmap(NULL, size_, PROT_READ | PROT_WRITE, MAP_SHARED_VALIDATE, shm_fd_, 0)
+            ::mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED_VALIDATE, shm_fd_, 0)
         );
         if (shm_ptr_ == MAP_FAILED)
         {
             ::close(shm_fd_);
             auto msg = std::format(
-                "Failed to mmap shared memory [{}]. Error: {}", name, std::strerror(errno)
+                "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
             );
-            return unexpected{SharedMemoryError(SharedMemoryErrorCode::MMAP_FAILED, msg)};
+            return unexpected{PosixIpcError(PosixIpcErrorCode::SHM_MMAP_FAILED, msg)};
         }
 
-        return SharedMemory(name, size_, shm_fd_, shm_ptr_, created_);
+        return SharedMemory(name, size, shm_fd_, shm_ptr_, created_);
     }
 
     ~SharedMemory()

@@ -84,7 +84,7 @@ void run_spsc(
     auto t = std::thread(
         [&consumerDuration, &q, &started, iters, cpu1, cycles_per_ns, slow_consumer]
         {
-            posix_ipc::threads::pin(cpu1);
+            [[maybe_unused]] auto res = posix_ipc::threads::pin(cpu1);
 
             auto t1 = high_resolution_clock::now();
 
@@ -113,7 +113,7 @@ void run_spsc(
     // producer thread
     while (!started)
         ;
-    posix_ipc::threads::pin(cpu2);
+    [[maybe_unused]] auto res = posix_ipc::threads::pin(cpu2);
     byte* payload = new byte[payload_size];
     *reinterpret_cast<uint64_t*>(payload) = 1;
     auto msg = Message::borrows(payload, payload_size);

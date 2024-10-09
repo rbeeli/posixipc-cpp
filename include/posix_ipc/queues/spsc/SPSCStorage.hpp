@@ -22,18 +22,18 @@ struct SPSCStorage
 {
     static constexpr uint64_t CACHE_LINE_SIZE = 64;
 
-    // buffer_size = storage_size - buffer_offset)
+    // buffer_size = storage_size_ - buffer_offset
     static constexpr uint64_t BUFFER_OFFSET = 3 * CACHE_LINE_SIZE;
 
-    alignas(CACHE_LINE_SIZE) uint64_t storage_size;
-    alignas(CACHE_LINE_SIZE) std::atomic<uint64_t> read_ix;
-    alignas(CACHE_LINE_SIZE) std::atomic<uint64_t> write_ix;
+    alignas(CACHE_LINE_SIZE) uint64_t storage_size_;
+    alignas(CACHE_LINE_SIZE) std::atomic<uint64_t> read_ix_;
+    alignas(CACHE_LINE_SIZE) std::atomic<uint64_t> write_ix_;
 
     SPSCStorage(uint64_t storage_size) noexcept
-        : storage_size(storage_size), read_ix(0), write_ix(0)
+        : storage_size_(storage_size), read_ix_(0), write_ix_(0)
     {
         assert(
-            reinterpret_cast<char*>(&write_ix) - reinterpret_cast<char*>(&read_ix) ==
+            reinterpret_cast<char*>(&write_ix_) - reinterpret_cast<char*>(&read_ix_) ==
             static_cast<ptrdiff_t>(CACHE_LINE_SIZE)
         );
     }
@@ -48,7 +48,7 @@ struct SPSCStorage
 
     [[nodiscard]] inline uint64_t buffer_size() const noexcept
     {
-        return storage_size - BUFFER_OFFSET;
+        return storage_size_ - BUFFER_OFFSET;
     }
 
     [[nodiscard]] inline byte* buffer() noexcept

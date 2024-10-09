@@ -7,6 +7,7 @@
 #include <memory>
 #include <expected>
 
+#include "posix_ipc/errors.hpp"
 #include "posix_ipc/SharedMemory.hpp"
 #include "posix_ipc/queues/Message.hpp"
 #include "posix_ipc/queues/pubsub/PubSubConfig.hpp"
@@ -42,7 +43,9 @@ public:
     {
     }
 
-    [[nodiscard]] static expected<Publisher, string> from_config(const PubSubConfig& config) noexcept
+    [[nodiscard]] static expected<Publisher, PosixIpcError> from_config(
+        const PubSubConfig& config
+    ) noexcept
     {
         unique_ptr<SharedMemory> shm = nullptr;
 
@@ -51,8 +54,8 @@ public:
         if (SharedMemory::exists(config.shm_name))
         {
             auto shm_res = SharedMemory::open(config.shm_name);
-            if (!shm_res.has_value())
-                return unexpected{shm_res.error().message};
+            if (!shm_res)
+                return unexpected{shm_res.error()};
             shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
 
             // check if size matches
@@ -85,8 +88,8 @@ public:
             auto shm_res = SharedMemory::open_or_create(
                 config.shm_name, config.storage_size_bytes, true
             );
-            if (!shm_res.has_value())
-                return unexpected{shm_res.error().message};
+            if (!shm_res)
+                return unexpected{shm_res.error()};
             shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
         }
 

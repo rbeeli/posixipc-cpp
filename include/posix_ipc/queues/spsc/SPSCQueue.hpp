@@ -44,9 +44,8 @@ class SPSCQueue
 {
 private:
     alignas(SPSCStorage::CACHE_LINE_SIZE) SPSCStorage* storage_;
-    alignas(SPSCStorage::CACHE_LINE_SIZE) size_t next_read_ix_ = 0;
-    alignas(SPSCStorage::CACHE_LINE_SIZE) size_t cached_read_ix;
-    alignas(SPSCStorage::CACHE_LINE_SIZE) size_t cached_write_ix;
+    alignas(SPSCStorage::CACHE_LINE_SIZE) size_t cached_read_ix_;
+    alignas(SPSCStorage::CACHE_LINE_SIZE) size_t cached_write_ix_;
 
     const size_t max_message_size_; // max size of a single message in bytes
     const size_t buffer_size_;
@@ -55,8 +54,8 @@ private:
 public:
     SPSCQueue(SPSCStorage* storage) noexcept
         : storage_(storage),
-          cached_read_ix(storage->read_ix.load(std::memory_order::acquire)),
-          cached_write_ix(storage->write_ix.load(std::memory_order::acquire)),
+          cached_read_ix_(storage->read_ix_.load(std::memory_order::acquire)),
+          cached_write_ix_(storage->write_ix_.load(std::memory_order::acquire)),
           // at least two messages must fit in buffer, otherwise we can't
           // distinguish between empty and full, because the updated write index
           // will be equal to the read index (0) after the first message
@@ -93,8 +92,8 @@ public:
      */
     __attribute__((always_inline)) inline bool is_empty() const noexcept
     {
-        return storage_->read_ix.load(std::memory_order::acquire) ==
-               storage_->write_ix.load(std::memory_order::acquire);
+        return storage_->read_ix_.load(std::memory_order::acquire) ==
+               storage_->write_ix_.load(std::memory_order::acquire);
     }
 
     /**
@@ -105,8 +104,8 @@ public:
      */
     __attribute__((always_inline)) inline bool can_dequeue() const noexcept
     {
-        return storage_->read_ix.load(std::memory_order::relaxed) !=
-               storage_->write_ix.load(std::memory_order::acquire);
+        return storage_->read_ix_.load(std::memory_order::relaxed) !=
+               storage_->write_ix_.load(std::memory_order::acquire);
     }
 
     [[nodiscard]] inline size_t buffer_size() const noexcept
@@ -132,7 +131,7 @@ public:
         );
 
         const size_t total_size = val.total_size();
-        size_t write_ix = storage_->write_ix.load(std::memory_order::relaxed);
+        size_t write_ix = storage_->write_ix_.load(std::memory_order::relaxed);
         size_t next_write_ix = next_index(write_ix, total_size);
 
         // check if we would cross the end of the buffer
@@ -141,10 +140,10 @@ public:
             // not crossing the end
 
             // check if we would cross the reader (on cache first, then update if needed)
-            if ((write_ix < cached_read_ix) && (next_write_ix >= cached_read_ix))
+            if ((write_ix < cached_read_ix_) && (next_write_ix >= cached_read_ix_))
             {
-                cached_read_ix = storage_->read_ix.load(std::memory_order::acquire);
-                if ((write_ix < cached_read_ix) && (next_write_ix >= cached_read_ix))
+                cached_read_ix_ = storage_->read_ix_.load(std::memory_order::acquire);
+                if ((write_ix < cached_read_ix_) && (next_write_ix >= cached_read_ix_))
                     return false; // queue is full
             }
         }
@@ -154,10 +153,10 @@ public:
 
             // check if we would cross the reader (on cache first, then update if needed)
             next_write_ix = next_index(0, total_size);
-            if (next_write_ix >= cached_read_ix)
+            if (next_write_ix >= cached_read_ix_)
             {
-                cached_read_ix = storage_->read_ix.load(std::memory_order::acquire);
-                if (next_write_ix >= cached_read_ix)
+                cached_read_ix_ = storage_->read_ix_.load(std::memory_order::acquire);
+                if (next_write_ix >= cached_read_ix_)
                     return false; // queue is full
             }
 
@@ -172,7 +171,7 @@ public:
         std::memcpy(buffer_ + write_ix + sizeof(uint64_t), val.payload, val.payload_size());
 
         // update write index
-        storage_->write_ix.store(next_write_ix, std::memory_order::release);
+        storage_->write_ix_.store(next_write_ix, std::memory_order::release);
 
         return true; // success
     }
@@ -182,13 +181,13 @@ public:
         // on wrap-around, we need to recheck the read index.
         // use goto/jump instead of function call to avoid stack overhead.
     recheck_read_index:
-        size_t read_ix = storage_->read_ix.load(std::memory_order::relaxed);
+        size_t read_ix = storage_->read_ix_.load(std::memory_order::relaxed);
 
         // check if queue is empty (on cache first, then update if needed)
-        if (read_ix == cached_write_ix)
+        if (read_ix == cached_write_ix_)
         {
-            cached_write_ix = storage_->write_ix.load(std::memory_order::acquire);
-            if (read_ix == cached_write_ix)
+            cached_write_ix_ = storage_->write_ix_.load(std::memory_order::acquire);
+            if (read_ix == cached_write_ix_)
                 return {}; // queue is empty
         }
 
@@ -197,7 +196,7 @@ public:
         if (message_size == 0) [[unlikely]]
         {
             // message wraps around, move to beginning of queue
-            storage_->read_ix.store(0, std::memory_order::release);
+            storage_->read_ix_.store(0, std::memory_order::release);
             // recheck read index
             goto recheck_read_index;
         }
@@ -212,7 +211,7 @@ public:
     __attribute__((always_inline)) inline void dequeue_commit(const MessageView message) noexcept
     {
         const uint64_t next_read_ix = next_index(message.index, message.total_size());
-        storage_->read_ix.store(next_read_ix, std::memory_order::release);
+        storage_->read_ix_.store(next_read_ix, std::memory_order::release);
     }
 
 private:

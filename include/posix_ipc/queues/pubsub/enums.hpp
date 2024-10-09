@@ -5,6 +5,8 @@
 #include <format>
 #include <expected>
 
+#include "posix_ipc/errors.hpp"
+
 namespace posix_ipc
 {
 namespace queues
@@ -21,13 +23,18 @@ enum class QueueFullPolicy : uint8_t
     // BLOCK,
 };
 
-[[nodiscard]] static expected<QueueFullPolicy, string> QueueFullPolicy_from_string(const string& s) noexcept
+[[nodiscard]] static expected<QueueFullPolicy, PosixIpcError> QueueFullPolicy_from_string(
+    const string& s
+) noexcept
 {
     if (s == "DROP_NEWEST")
         return QueueFullPolicy::DROP_NEWEST;
     // else if (s == "BLOCK")
     //     return T::BLOCK;
-    return unexpected{std::format("Unknown queue full policy: {}", s)};
+    return unexpected{PosixIpcError(
+        PosixIpcErrorCode::PUBSUB_INVALID_QUEUE_FULL_POLICY,
+        std::format("Unknown queue full policy: {}", s)
+    )};
 }
 } // namespace pubsub
 } // namespace queues

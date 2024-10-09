@@ -5,6 +5,7 @@
 #include <vector>
 // #include <mutex>
 
+#include "posix_ipc/errors.hpp"
 #include "posix_ipc/SharedMemory.hpp"
 #include "posix_ipc/synchronization.hpp"
 #include "posix_ipc/queues/Message.hpp"
@@ -62,7 +63,7 @@ public:
         return *this;
     }
 
-    expected<void, string> sync_configs(vector<PubSubConfig>& configs)
+    [[nodiscard]] expected<void, PosixIpcError> sync_configs(vector<PubSubConfig>& configs)
     {
         lock_guard_type lock(lock_obj);
 

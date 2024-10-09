@@ -9,7 +9,7 @@
 // using std::expected;
 // using std::unexpected;
 
-// expected<void, nats::NatsError> run()
+// [[nodiscard]] expected<void, nats::NatsError> run()
 // {
 //     auto res0 = nats::NatsClient::create();
 //     if (!res0)

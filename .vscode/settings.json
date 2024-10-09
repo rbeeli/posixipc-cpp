@@ -72,6 +72,7 @@
         "deque": "cpp",
         "list": "cpp",
         "queue": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "source_location": "cpp"
     }
 }
