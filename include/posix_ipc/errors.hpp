@@ -14,7 +14,7 @@ namespace posix_ipc
 /**
  * Error codes for this POSIX IPC library.
  */
-enum class PosixIpcErrorCode
+enum class PosixIpcErrorCode : int16_t
 {
     success = 0,
     shm_open_failed,
@@ -27,6 +27,33 @@ enum class PosixIpcErrorCode
     pubsub_invalid_queue_full_policy,
     pubsub_shm_size_mismatch
 };
+
+static constexpr std::string_view to_string(PosixIpcErrorCode error) noexcept
+{
+    switch (error)
+    {
+        case PosixIpcErrorCode::shm_open_failed:
+            return "shm_open_failed";
+        case PosixIpcErrorCode::shm_fstat_failed:
+            return "shm_fstat_failed";
+        case PosixIpcErrorCode::shm_truncate_failed:
+            return "shm_truncate_failed";
+        case PosixIpcErrorCode::shm_mmap_failed:
+            return "shm_mmap_failed";
+        case PosixIpcErrorCode::shm_unlink_failed:
+            return "shm_unlink_failed";
+        case PosixIpcErrorCode::thread_set_affinity_failed:
+            return "thread_set_affinity_failed";
+        case PosixIpcErrorCode::thread_set_name_failed:
+            return "thread_set_name_failed";
+        case PosixIpcErrorCode::pubsub_invalid_queue_full_policy:
+            return "pubsub_invalid_queue_full_policy";
+        case PosixIpcErrorCode::pubsub_shm_size_mismatch:
+            return "pubsub_shm_size_mismatch";
+        default:
+            return "unknown";
+    }
+}
 
 /**
  * Error category for POSIX IPC library error codes
@@ -42,37 +69,15 @@ public:
 
     std::string message(int ev) const override
     {
-        switch (static_cast<PosixIpcErrorCode>(ev))
-        {
-            case PosixIpcErrorCode::shm_open_failed:
-                return "Failed to open shared memory (shm_open).";
-            case PosixIpcErrorCode::shm_fstat_failed:
-                return "Failed to fstat shared memory (fstat).";
-            case PosixIpcErrorCode::shm_truncate_failed:
-                return "Failed to truncate shared memory (ftruncate).";
-            case PosixIpcErrorCode::shm_mmap_failed:
-                return "Failed to map shared memory (mmap).";
-            case PosixIpcErrorCode::shm_unlink_failed:
-                return "Failed to unlink shared memory (shm_unlink).";
-            case PosixIpcErrorCode::thread_set_affinity_failed:
-                return "Failed to set CPU affinity of thread.";
-            case PosixIpcErrorCode::thread_set_name_failed:
-                return "Failed to set name of thread.";
-            case PosixIpcErrorCode::pubsub_invalid_queue_full_policy:
-                return "Invalid queue full policy (enum QueueFullPolicy).";
-            case PosixIpcErrorCode::pubsub_shm_size_mismatch:
-                return "The configured shared memory size does not match the actual size.";
-            default:
-                return "Unknown POSIX IPC error code.";
-        }
+        return std::string(to_string(static_cast<PosixIpcErrorCode>(ev)));
     }
 };
 
-const PosixIpcErrorCategory ErrorCategory{};
+const PosixIpcErrorCategory error_category{};
 
 inline std::error_code make_error_code(PosixIpcErrorCode e)
 {
-    return {static_cast<int>(e), ErrorCategory};
+    return {static_cast<int>(e), error_category};
 }
 
 /**
@@ -100,20 +105,19 @@ struct PosixIpcError
 
     inline std::string error_code_message() const
     {
-        return ErrorCategory.message(static_cast<int>(code));
+        return error_category.message(static_cast<int>(code));
     }
 
-    inline std::string full_message() const
+    inline std::string to_string() const
     {
         return std::format(
-            "POSIX IPC error {} at {}:{}:{} in {}: {}. Details: {}",
-            static_cast<int16_t>(code),
+            "PosixIpcError {}: {} at {}:{}:{} in {}",
+            posix_ipc::to_string(code),
+            message,
             location.file_name(),
             location.line(),
             location.column(),
-            location.function_name(),
-            error_code_message(),
-            message
+            location.function_name()
         );
     }
 };
@@ -127,40 +131,48 @@ concept ExceptionLike = std::is_base_of_v<std::exception, E> && requires(const E
 // support << operator for easy printing
 inline std::ostream& operator<<(std::ostream& os, const posix_ipc::PosixIpcError& error)
 {
-    os << error.full_message();
+    os << error.to_string();
     return os;
 }
 } // namespace posix_ipc
 
-// std::format {} support for `PosixIpcError`
-template <>
-struct std::formatter<posix_ipc::PosixIpcError>
+namespace std
 {
-    template <class ParseContext>
+// Specialization of std::formatter for posix_ipc::PosixIpcError
+template <>
+struct formatter<posix_ipc::PosixIpcError>
+{
+    template <typename ParseContext>
     constexpr auto parse(ParseContext& ctx)
     {
         return ctx.begin();
     }
 
     template <typename FormatContext>
-    auto format(const posix_ipc::PosixIpcError& e, FormatContext& ctx)
+    auto format(const posix_ipc::PosixIpcError& e, FormatContext& ctx) const
     {
-        return format_to(
-            ctx.out(),
-            "POSIX IPC error {} at {}:{}:{} in {}: {}. Details: {}",
-            static_cast<int16_t>(e.code),
-            e.location.file_name(),
-            e.location.line(),
-            e.location.column(),
-            e.location.function_name(),
-            e.error_code_message(),
-            e.message
-        );
+        return std::format_to(ctx.out(), "{}", e.to_string());
     }
 };
 
-namespace std
+// Specialization of std::formatter for posix_ipc::PosixIpcErrorCode
+template <>
+struct formatter<posix_ipc::PosixIpcErrorCode>
 {
+    template <typename ParseContext>
+    constexpr auto parse(ParseContext& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template <typename FormatContext>
+    auto format(const posix_ipc::PosixIpcErrorCode& code, FormatContext& ctx) const
+    {
+        return std::format_to(ctx.out(), "{}", posix_ipc::to_string(code));
+    }
+};
+
+// Specialization of std::is_error_code_enum for posix_ipc::PosixIpcErrorCode
 template <>
 struct is_error_code_enum<posix_ipc::PosixIpcErrorCode> : true_type
 {

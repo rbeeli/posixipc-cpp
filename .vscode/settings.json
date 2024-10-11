@@ -73,6 +73,7 @@
         "list": "cpp",
         "queue": "cpp",
         "stack": "cpp",
-        "source_location": "cpp"
+        "source_location": "cpp",
+        "numbers": "cpp"
     }
 }
