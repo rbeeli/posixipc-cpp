@@ -73,10 +73,12 @@ void run_spsc(
     const uint64_t buffer_size = queue_size * sizeof(uint64_t);
     const uint64_t storage_size = buffer_size + SPSCStorage::BUFFER_OFFSET;
 
-    auto mem_ptr = new byte[storage_size];
-
-    SPSCStorage* storage = new (mem_ptr) SPSCStorage(storage_size);
-    unique_ptr<SPSCQueue> q = std::make_unique<SPSCQueue>(storage);
+    auto buffer = std::make_unique_for_overwrite<std::byte[]>(storage_size);  
+    SPSCStorage* storage = new (buffer.get()) SPSCStorage(storage_size);
+    auto maybe_queue = SPSCQueue::create(storage);
+    if (!maybe_queue)
+        throw std::runtime_error(maybe_queue.error().message);
+    SPSCQueue q = std::move(*maybe_queue);
 
     // consumer thread
     std::atomic<bool> started{false};
@@ -93,16 +95,16 @@ void run_spsc(
             // uint64 counter = 0;
             for (int i = 0; i < iters; ++i)
             {
-                MessageView msg = q->dequeue_begin();
+                MessageView msg = q.dequeue_begin();
                 while (msg.empty())
-                    msg = q->dequeue_begin();
+                    msg = q.dequeue_begin();
 
                 EXPECT_EQ(msg.payload_ptr<uint64_t>()[0], 1);
 
                 if (slow_consumer)
                     std::this_thread::sleep_for(std::chrono::nanoseconds(1000));
 
-                q->dequeue_commit(msg);
+                q.dequeue_commit(msg);
             }
 
             auto t2 = high_resolution_clock::now();
@@ -114,13 +116,14 @@ void run_spsc(
     while (!started)
         ;
     [[maybe_unused]] auto res = posix_ipc::threads::pin(cpu2);
-    byte* payload = new byte[payload_size];
+    auto buffer_payload = std::make_unique_for_overwrite<std::byte[]>(payload_size);  
+    byte* payload = buffer_payload.get();
     *reinterpret_cast<uint64_t*>(payload) = 1;
     auto msg = Message::borrows(payload, payload_size);
     auto t1 = high_resolution_clock::now();
     for (int64_t i = 0; i < iters; ++i)
     {
-        while (!q->enqueue(msg))
+        while (!q.enqueue(msg))
             ;
 
         if (slow_producer)
@@ -137,9 +140,6 @@ void run_spsc(
     auto c_ops = iters * 1'000'000'000 / consumerDuration.count();
     std::cout << std::format("producer {:L} op/s | ", p_ops)
               << std::format("consumer {:L} op/s", c_ops) << std::endl;
-
-    delete[] payload;
-    delete[] mem_ptr;
 }
 
 TEST(SPSCQueue, queue_sizes)

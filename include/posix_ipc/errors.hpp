@@ -26,7 +26,8 @@ enum class PosixIpcErrorCode : int16_t
     thread_set_affinity_failed,
     thread_set_name_failed,
     pubsub_invalid_queue_full_policy,
-    pubsub_shm_size_mismatch
+    pubsub_shm_size_mismatch,
+    spsc_storage_error
 };
 
 static constexpr std::string_view to_string(PosixIpcErrorCode error) noexcept
@@ -51,6 +52,8 @@ static constexpr std::string_view to_string(PosixIpcErrorCode error) noexcept
             return "pubsub_invalid_queue_full_policy";
         case PosixIpcErrorCode::pubsub_shm_size_mismatch:
             return "pubsub_shm_size_mismatch";
+        case PosixIpcErrorCode::spsc_storage_error:
+            return "spsc_storage_error";
         default:
             return "unknown";
     }
