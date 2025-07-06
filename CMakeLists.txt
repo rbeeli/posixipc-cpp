@@ -1,24 +1,25 @@
 cmake_minimum_required(VERSION 3.25)
 
-# Set the C++ standard and related settings
+option(POSIX_IPC_BUILD_EXAMPLES "Build example programs in ./examples directory" OFF)
+option(POSIX_IPC_BUILD_TESTS "Build tests in ./test directory" OFF)
+option(POSIX_IPC_BUILD_BENCH "Build benchmarks programs in ./bench directory" OFF)
+option(POSIX_IPC_BUILD_SCRATCH "Build scratch programs in ./scratch directory" OFF)
+
+if(POSIX_IPC_BUILD_TESTS)
+    list(APPEND VCPKG_MANIFEST_FEATURES "tests")
+endif()
+
+project(posixipc VERSION 0.2.0 LANGUAGES CXX)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-project(posixipc
-    VERSION 0.1.0
-    LANGUAGES CXX)
 
 add_library(${PROJECT_NAME} INTERFACE)
 
 target_include_directories(${PROJECT_NAME} INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
-
-option(POSIX_IPC_BUILD_EXAMPLES "Build example programs in ./examples directory" OFF)
-option(POSIX_IPC_BUILD_TESTS "Build tests in ./test directory" OFF)
-option(POSIX_IPC_BUILD_BENCH "Build benchmarks programs in ./bench directory" OFF)
-option(POSIX_IPC_BUILD_SCRATCH "Build scratch programs in ./scratch directory" OFF)
 
 # ./examples
 if(POSIX_IPC_BUILD_EXAMPLES)

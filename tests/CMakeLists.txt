@@ -1,6 +1,6 @@
-find_package(GTest CONFIG REQUIRED)
-
 enable_testing()
+
+find_package(GTest CONFIG REQUIRED)
 
 add_executable(test_SPSC SPSC.cpp)
 add_executable(test_PosixIpcError PosixIpcError.cpp)

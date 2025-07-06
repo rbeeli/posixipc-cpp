@@ -25,7 +25,7 @@
       },
       "environment": {
         "__DISABLED": "-fno-exceptions -Wfatal-errors -Wunused -Wconversion",
-        "CMAKE_CXX_FLAGS": "-fcoroutines -Wall -Wpedantic -Wextra -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
+        "CMAKE_CXX_FLAGS": "-fcoroutines -Wall -Wpedantic -Wextra -Wstrict-aliasing -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
       }
     },
     {
@@ -43,7 +43,7 @@
       },
       "environment": {
         "__DISABLED": "-fno-exceptions -Wfatal-errors -Wunused -Wconversion",
-        "CMAKE_CXX_FLAGS": "-stdlib=libc++ -Wall -Wpedantic -Wextra -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
+        "CMAKE_CXX_FLAGS": "-stdlib=libc++ -Wall -Wpedantic -Wextra -Wstrict-aliasing -fno-rtti -Wno-unused-parameter -Wno-unused-function -Werror=return-type -Woverloaded-virtual -Wnon-virtual-dtor -Wno-ignored-attributes"
       }
     },
     {

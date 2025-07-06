@@ -74,6 +74,13 @@
         "queue": "cpp",
         "stack": "cpp",
         "source_location": "cpp",
-        "numbers": "cpp"
+        "numbers": "cpp",
+        "clocale": "cpp",
+        "cmath": "cpp",
+        "cstdarg": "cpp",
+        "numeric": "cpp",
+        "iomanip": "cpp",
+        "semaphore": "cpp",
+        "text_encoding": "cpp"
     }
 }

@@ -1,10 +1,11 @@
 {
-    "name": "posixipc-cpp",
-    "version": "0.1.0",
-    "dependencies": [
-      "benchmark",
-      "spscqueue",
-      "readerwriterqueue"
-    ]
+  "name": "posixipc-cpp",
+  "version": "0.2.0",
+  "dependencies": ["benchmark", "spscqueue", "readerwriterqueue"],
+  "features": {
+    "tests": {
+      "description": "Unit-test support",
+      "dependencies": ["gtest"]
+    }
   }
-  
+}
