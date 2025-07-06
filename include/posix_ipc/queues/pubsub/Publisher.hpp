@@ -21,33 +21,32 @@ namespace pubsub
 {
 using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
-using std::unique_ptr;
-using std::expected;
-using std::unexpected;
 
 class Publisher
 {
 private:
     PubSubConfig config_;
-    unique_ptr<SharedMemory> shm_;
-    unique_ptr<SPSCQueue> queue_; // resides in shared memory
+    std::unique_ptr<SharedMemory> shm_;
+    std::unique_ptr<SPSCQueue> queue_; // resides in shared memory
 
 public:
     time_point<high_resolution_clock> last_drop_time;
     size_t drop_count = 0;
 
     Publisher(
-        const PubSubConfig& config, unique_ptr<SharedMemory> shm, unique_ptr<SPSCQueue> queue
+        const PubSubConfig& config,
+        std::unique_ptr<SharedMemory> shm,
+        std::unique_ptr<SPSCQueue> queue
     ) noexcept
         : config_(config), shm_(std::move(shm)), queue_(std::move(queue))
     {
     }
 
-    [[nodiscard]] static expected<Publisher, PosixIpcError> from_config(
+    [[nodiscard]] static std::expected<Publisher, PosixIpcError> from_config(
         const PubSubConfig& config
     ) noexcept
     {
-        unique_ptr<SharedMemory> shm = nullptr;
+        std::unique_ptr<SharedMemory> shm = nullptr;
 
         // shared memory (try to open, if not exists or size mismatch, create new one)
         bool recreate = false;
@@ -55,7 +54,7 @@ public:
         {
             auto shm_res = SharedMemory::open(config.shm_name);
             if (!shm_res)
-                return unexpected{shm_res.error()};
+                return std::unexpected{shm_res.error()};
             shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
 
             // check if size matches
@@ -89,7 +88,7 @@ public:
                 config.shm_name, config.storage_size_bytes, true
             );
             if (!shm_res)
-                return unexpected{shm_res.error()};
+                return std::unexpected{shm_res.error()};
             shm = std::make_unique<SharedMemory>(std::move(shm_res.value()));
         }
 
@@ -106,7 +105,7 @@ public:
             storage = reinterpret_cast<SPSCStorage*>(shm->ptr());
         }
 
-        unique_ptr<SPSCQueue> queue = std::make_unique<SPSCQueue>(storage);
+        std::unique_ptr<SPSCQueue> queue = std::make_unique<SPSCQueue>(storage);
 
         // // shared flag for mutex
         // pthread_mutex_t *native = static_cast<pthread_mutex_t*>(storage->mutex.native_handle());

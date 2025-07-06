@@ -10,7 +10,7 @@ namespace queues
 {
 namespace spsc
 {
-using std::byte;
+using byte = std::byte;
 
 /// @brief Storage for SPSCQueue.
 /// @details

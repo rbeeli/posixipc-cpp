@@ -11,22 +11,17 @@ namespace posix_ipc
 {
 namespace queues
 {
-using std::byte;
-using std::string;
-using std::string_view;
-
 struct MessageView
 {
-    byte* payload;
+    std::byte* payload;
     uint64_t size;
     uint64_t index;
 
-    MessageView() noexcept
-        : payload(nullptr), size(0), index(0)
+    MessageView() noexcept : payload(nullptr), size(0), index(0)
     {
     }
 
-    explicit MessageView(byte* payload, uint64_t size, uint64_t index) noexcept
+    explicit MessageView(std::byte* payload, uint64_t size, uint64_t index) noexcept
         : payload(payload), size(size), index(index)
     {
     }
@@ -71,24 +66,26 @@ struct MessageView
         std::memcpy(dest, payload, payload_size());
     }
 
-    __attribute__((always_inline)) [[nodiscard]] inline string_view as_string_view() const noexcept
+    __attribute__((always_inline)) [[nodiscard]] inline std::string_view
+    as_string_view() const noexcept
     {
-        return string_view(reinterpret_cast<const char*>(payload), size);
+        return std::string_view(reinterpret_cast<const char*>(payload), size);
     }
 
-    __attribute__((always_inline)) [[nodiscard]] inline std::span<byte> as_span() const noexcept
+    __attribute__((always_inline)) [[nodiscard]] inline std::span<std::byte>
+    as_span() const noexcept
     {
-        return std::span<byte>(payload, payload_size());
+        return std::span<std::byte>(payload, payload_size());
     }
 };
 
 struct Message
 {
-    byte* payload;
+    std::byte* payload;
     uint64_t size;
     bool owns_payload;
 
-    explicit Message(byte* payload, uint64_t size, bool owns_payload) noexcept
+    explicit Message(std::byte* payload, uint64_t size, bool owns_payload) noexcept
         : payload(payload), size(size), owns_payload(owns_payload)
     {
     }
@@ -134,12 +131,12 @@ struct Message
         return sizeof(uint64_t) + payload_size();
     }
 
-    [[nodiscard]] static inline Message owns(byte* payload, const size_t size) noexcept
+    [[nodiscard]] static inline Message owns(std::byte* payload, const size_t size) noexcept
     {
         return Message(payload, size, true);
     }
 
-    [[nodiscard]] static inline Message borrows(byte* payload, const size_t size) noexcept
+    [[nodiscard]] static inline Message borrows(std::byte* payload, const size_t size) noexcept
     {
         return Message(payload, size, false);
     }

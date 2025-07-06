@@ -18,33 +18,28 @@
 
 namespace posix_ipc
 {
-using std::string;
-using std::byte;
-using std::expected;
-using std::unexpected;
-
 class SharedMemory
 {
 private:
-    string shm_name_;
+    std::string shm_name_;
     uint64_t size_;
     int shm_fd_;
-    byte* shm_ptr_;
+    std::byte* shm_ptr_;
     bool created_;
 
 private:
-    SharedMemory(string name, const size_t size, int fd, byte* ptr, bool created)
+    SharedMemory(std::string name, const size_t size, int fd, std::byte* ptr, bool created)
         : shm_name_(name), size_(size), shm_fd_(fd), shm_ptr_(ptr), created_(created)
     {
     }
 
 public:
-    inline string name() const
+    inline std::string name() const
     {
         return shm_name_;
     }
 
-    inline byte* ptr() const
+    inline std::byte* ptr() const
     {
         return shm_ptr_;
     }
@@ -54,13 +49,13 @@ public:
         return size_;
     }
 
-    [[nodiscard]] static expected<SharedMemory, PosixIpcError> open(string name)
+    [[nodiscard]] static std::expected<SharedMemory, PosixIpcError> open(std::string name)
     {
         return open_or_create(name, 0, false);
     }
 
-    [[nodiscard]] static expected<SharedMemory, PosixIpcError> open_or_create(
-        string name, size_t size, bool create = true
+    [[nodiscard]] static std::expected<SharedMemory, PosixIpcError> open_or_create(
+        std::string name, size_t size, bool create = true
     )
     {
         auto created_ = false;
@@ -86,7 +81,7 @@ public:
                         std::strerror(errno),
                         errno
                     );
-                    return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
+                    return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
                 }
                 created_ = false;
             }
@@ -100,7 +95,7 @@ public:
                     std::strerror(errno),
                     errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
+                return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
             }
         }
 
@@ -112,7 +107,7 @@ public:
                 auto msg = std::format(
                     "Shared memory [{}] size parameter must be greater than 0, got {}.", name, size
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
+                return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_open_failed, msg)};
             }
 
             std::clog << std::format("Creating shared memory [{}] of size {} bytes", name, size)
@@ -124,7 +119,7 @@ public:
                 auto msg = std::format(
                     "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_truncate_failed, msg)};
+                return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_truncate_failed, msg)};
             }
         }
         else
@@ -137,7 +132,7 @@ public:
                 auto msg = std::format(
                     "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
                 );
-                return unexpected{PosixIpcError(PosixIpcErrorCode::shm_fstat_failed, msg)};
+                return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_fstat_failed, msg)};
             }
             size = s.st_size;
 
@@ -203,7 +198,7 @@ public:
         return *this;
     }
 
-    static bool exists(const string& name) noexcept
+    static bool exists(const std::string& name) noexcept
     {
         errno = 0;
 

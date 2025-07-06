@@ -3,6 +3,7 @@
 #include <format>
 #include <optional>
 #include <vector>
+#include <expected>
 // #include <mutex>
 
 #include "posix_ipc/errors.hpp"
@@ -18,9 +19,6 @@ namespace queues
 {
 namespace pubsub
 {
-using std::optional;
-using std::vector;
-
 // using lock_type = std::mutex;
 // using lock_guard_type = std::lock_guard<std::mutex>;
 using lock_type = SpinLock;
@@ -28,15 +26,15 @@ using lock_guard_type = SpinLockGuard;
 
 struct PubSubChange
 {
-    optional<Publisher> addition;
-    optional<string> removal;
+    std::optional<Publisher> addition;
+    std::optional<string> removal;
 };
 
 class PubSub
 {
 private:
-    vector<Publisher> publishers;
-    vector<PubSubChange> change_queue;
+    std::vector<Publisher> publishers;
+    std::vector<PubSubChange> change_queue;
     lock_type lock_obj;
 
 public:
@@ -63,7 +61,7 @@ public:
         return *this;
     }
 
-    [[nodiscard]] expected<void, PosixIpcError> sync_configs(vector<PubSubConfig>& configs)
+    [[nodiscard]] std::expected<void, PosixIpcError> sync_configs(std::vector<PubSubConfig>& configs)
     {
         lock_guard_type lock(lock_obj);
 

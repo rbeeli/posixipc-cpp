@@ -13,25 +13,21 @@ namespace queues
 {
 namespace pubsub
 {
-using std::string;
-using std::expected;
-using std::unexpected;
-
 enum class QueueFullPolicy : uint8_t
 {
     DROP_NEWEST,
     // BLOCK,
 };
 
-[[nodiscard]] static expected<QueueFullPolicy, PosixIpcError> QueueFullPolicy_from_string(
-    const string& s
+[[nodiscard]] static std::expected<QueueFullPolicy, PosixIpcError> QueueFullPolicy_from_string(
+    const std::string& s
 ) noexcept
 {
     if (s == "DROP_NEWEST")
         return QueueFullPolicy::DROP_NEWEST;
     // else if (s == "BLOCK")
     //     return T::BLOCK;
-    return unexpected{PosixIpcError(
+    return std::unexpected{PosixIpcError(
         PosixIpcErrorCode::pubsub_invalid_queue_full_policy,
         std::format("Unknown queue full policy: {}", s)
     )};
