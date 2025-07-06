@@ -141,8 +141,8 @@
 //     return {}; // Success
 // }
 
-// int main()
-// {
+int main()
+{
 //     auto ret = run();
 
 //     nats_Close();
@@ -153,5 +153,5 @@
 //         return 1;
 //     }
 
-//     return 0;
-// }
+    return 0;
+}
