@@ -6,6 +6,7 @@
       "hidden": true,
       "cacheVariables": {
         "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
         "CMAKE_MAKE_PROGRAM": "make"
       }
     },
@@ -17,7 +18,6 @@
       "binaryDir": "${sourceDir}/build/gcc",
       "cacheVariables": {
         "CMAKE_CXX_COMPILER": "/usr/bin/g++",
-        "VCPKG_TARGET_TRIPLET": "x64-linux",
         "CMAKE_TOOLCHAIN_FILE": {
           "type": "FILEPATH",
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"

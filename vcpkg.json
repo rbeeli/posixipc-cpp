@@ -5,7 +5,25 @@
   "features": {
     "tests": {
       "description": "Unit-test support",
-      "dependencies": ["gtest","benchmark", "spscqueue", "readerwriterqueue"]
+      "dependencies": [
+        "gtest"
+      ]
+    },
+    "examples": {
+      "description": "Deps for examples build",
+      "dependencies": [
+        "boost-atomic"
+      ]
+    },
+    "benchmarks": {
+      "description": "Deps for examples build",
+      "dependencies": [
+        "benchmark",
+        "boost-atomic",
+        "boost-lockfree",
+        "readerwriterqueue",
+        "spscqueue"
+      ]
     }
   }
 }

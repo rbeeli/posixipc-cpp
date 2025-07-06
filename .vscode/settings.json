@@ -81,6 +81,13 @@
         "numeric": "cpp",
         "iomanip": "cpp",
         "semaphore": "cpp",
-        "text_encoding": "cpp"
+        "text_encoding": "cpp",
+        "complex": "cpp",
+        "fstream": "cpp",
+        "stdfloat": "cpp",
+        "cfenv": "cpp",
+        "cinttypes": "cpp",
+        "typeindex": "cpp",
+        "valarray": "cpp"
     }
 }

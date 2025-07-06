@@ -9,6 +9,14 @@ if(POSIX_IPC_BUILD_TESTS)
     list(APPEND VCPKG_MANIFEST_FEATURES "tests")
 endif()
 
+if(POSIX_IPC_BUILD_EXAMPLES)
+    list(APPEND VCPKG_MANIFEST_FEATURES "examples")
+endif()
+
+if(POSIX_IPC_BUILD_BENCH)
+    list(APPEND VCPKG_MANIFEST_FEATURES "benchmarks")
+endif()
+
 project(posixipc VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)

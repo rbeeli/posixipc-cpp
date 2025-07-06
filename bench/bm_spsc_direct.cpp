@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <benchmark/benchmark.h>
 #include <readerwriterqueue/readerwriterqueue.h>
-#include <boost/thread/thread.hpp>
 #include <boost/lockfree/queue.hpp>
 #include <boost/lockfree/spsc_queue.hpp>
 #include <rigtorp/SPSCQueue.h>
@@ -14,7 +13,6 @@
 #include "utils.hpp"
 #include "posix_ipc/threads.hpp"
 #include "posix_ipc/queues/spsc/SPSCQueue.hpp"
-// #include "posix_ipc/queues/spsc/SPSCQueueStatic.hpp"
 
 using element_type = int64_t;
 using std::byte;
