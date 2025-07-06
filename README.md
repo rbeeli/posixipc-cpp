@@ -6,8 +6,8 @@
 - POSIX based shared memory queues and utilities
 - Single-producer, single-consumer lock-free queue
     - Transaction-like reading directly from shared memory without copying using `dequeue_begin` and `dequeue_commit` functions
-- Header-only, C++23
-- Supports only 64 bit builds
+- Header-only, C++23, GCC, Clang
+- Supports only 64-bit builds, x86, ARM (AArch64)
 
 ## Contribute
 
