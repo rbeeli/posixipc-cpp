@@ -3,6 +3,11 @@
 #include <atomic>
 #include <cstdint>
 #include <cstddef>
+#include <expected>
+#include <format>
+#include <source_location>
+
+#include "posix_ipc/errors.hpp"
 
 static_assert(std::atomic<uint64_t>::is_always_lock_free, "Atomic of size_t is not lock-free");
 static_assert(sizeof(void*) == 8, "Only supporting 64 bit builds");
@@ -55,6 +60,49 @@ struct SPSCStorage
     [[nodiscard]] inline byte* buffer() noexcept
     {
         return reinterpret_cast<byte*>(this) + BUFFER_OFFSET;
+    }
+
+
+    /* ---------- factory ---------- */
+
+    struct Deleter
+    {
+        void operator()(SPSCStorage* p) const noexcept
+        {
+            if (p)
+            {
+                p->~SPSCStorage();
+                ::operator delete(p, std::align_val_t{CACHE_LINE_SIZE});
+            }
+        }
+    };
+
+    static std::expected<std::unique_ptr<SPSCStorage, Deleter>, PosixIpcError> create(
+        uint64_t storage_size, const std::source_location& loc = std::source_location::current()
+    ) noexcept
+    {
+        if (storage_size <= BUFFER_OFFSET)
+        {
+            return std::unexpected{PosixIpcError(
+                PosixIpcErrorCode::spsc_storage_error,
+                std::format("Storage size {} too small", storage_size),
+                loc
+            )};
+        }
+
+        void* raw = ::operator new(
+            storage_size, std::align_val_t{CACHE_LINE_SIZE}, std::nothrow_t{}
+        );
+        if (!raw)
+        {
+            return std::unexpected{PosixIpcError(
+                PosixIpcErrorCode::spsc_storage_error,
+                std::format("Allocating {} bytes failed", storage_size),
+                loc
+            )};
+        }
+
+        return std::unique_ptr<SPSCStorage, Deleter>{new (raw) SPSCStorage(storage_size)};
     }
 };
 
