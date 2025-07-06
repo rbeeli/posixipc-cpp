@@ -4,6 +4,7 @@
 #include <optional>
 #include <vector>
 #include <expected>
+#include <string>
 // #include <mutex>
 
 #include "posix_ipc/errors.hpp"
@@ -27,7 +28,7 @@ using lock_guard_type = SpinLockGuard;
 struct PubSubChange
 {
     std::optional<Publisher> addition;
-    std::optional<string> removal;
+    std::optional<std::string> removal;
 };
 
 class PubSub
@@ -94,7 +95,7 @@ public:
                 PubSubChange change;
                 auto cfg_res = Publisher::from_config(cfg);
                 if (!cfg_res.has_value())
-                    return unexpected{cfg_res.error()};
+                    return std::unexpected{cfg_res.error()};
                 change.addition = std::move(cfg_res.value());
                 change_queue.emplace_back(std::move(change));
             }

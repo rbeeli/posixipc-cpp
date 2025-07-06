@@ -59,7 +59,7 @@ public:
     )
     {
         auto created_ = false;
-        byte* shm_ptr_ = nullptr;
+        std::byte* shm_ptr_ = nullptr;
 
         auto shm_mode = 0666;
         auto shm_flags = create ? O_CREAT | O_EXCL | O_RDWR | O_TRUNC : O_RDWR;
@@ -142,7 +142,7 @@ public:
 
         // map the shared memory region into the address space of the process
         //  | MAP_HUGETLB
-        shm_ptr_ = reinterpret_cast<byte*>(
+        shm_ptr_ = reinterpret_cast<std::byte*>(
             ::mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED_VALIDATE, shm_fd_, 0)
         );
         if (shm_ptr_ == MAP_FAILED)
@@ -151,7 +151,7 @@ public:
             auto msg = std::format(
                 "name={}, strerror={}, errno={}", name, std::strerror(errno), errno
             );
-            return unexpected{PosixIpcError(PosixIpcErrorCode::shm_mmap_failed, msg)};
+            return std::unexpected{PosixIpcError(PosixIpcErrorCode::shm_mmap_failed, msg)};
         }
 
         return SharedMemory(name, size, shm_fd_, shm_ptr_, created_);
