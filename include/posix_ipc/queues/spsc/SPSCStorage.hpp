@@ -64,6 +64,7 @@ static_assert(
 static_assert(sizeof(SPSCStorage) == 3 * SPSCStorage::CACHE_LINE_SIZE, "");
 static_assert(sizeof(SPSCStorage) == SPSCStorage::BUFFER_OFFSET, "");
 static_assert(std::atomic<uint64_t>::is_always_lock_free, "Atomic of size_t is not lock-free");
+static_assert(sizeof(void*) == 8, "Only supporting 64 bit builds");
 } // namespace spsc
 } // namespace queues
 } // namespace posix_ipc
