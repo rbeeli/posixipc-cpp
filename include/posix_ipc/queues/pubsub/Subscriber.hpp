@@ -19,7 +19,6 @@ namespace queues
 {
 namespace pubsub
 {
-using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
 
 class Subscriber
@@ -39,8 +38,41 @@ private:
     }
 
 public:
-    time_point<high_resolution_clock> last_drop_time;
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_drop_time;
     size_t drop_count = 0;
+
+    // non-copyable
+    Subscriber(const Subscriber&) = delete;
+    Subscriber& operator=(const Subscriber&) = delete;
+
+    // movable
+    Subscriber(Subscriber&& other) noexcept = default;
+    Subscriber& operator=(Subscriber&& other) = default;
+
+    [[nodiscard]] inline const PubSubConfig& config() const noexcept
+    {
+        return config_;
+    }
+
+    __attribute__((always_inline)) inline void dequeue_commit(const MessageView message) noexcept
+    {
+        queue_->dequeue_commit(message);
+    }
+
+    [[nodiscard]] __attribute__((always_inline)) inline MessageView dequeue_begin() noexcept
+    {
+        return queue_->dequeue_begin();
+    }
+
+    [[nodiscard]] __attribute__((always_inline)) inline bool is_empty() const noexcept
+    {
+        return queue_->is_empty();
+    }
+
+    [[nodiscard]] __attribute__((always_inline)) inline bool can_dequeue() const noexcept
+    {
+        return queue_->can_dequeue();
+    }
 
     [[nodiscard]] static std::expected<Subscriber, PosixIpcError> from_config(
         const PubSubConfig& config
@@ -76,9 +108,11 @@ public:
         }
 
         // initialize queue in shared memory
-        SPSCStorage* storage = reinterpret_cast<SPSCStorage*>(shm->ptr());
+        auto storage = SPSCStorage::map(shm->ptr(), shm->size());
+        if (!storage)
+            return std::unexpected{storage.error()};
 
-        std::unique_ptr<SPSCQueue> queue = std::make_unique<SPSCQueue>(storage);
+        auto queue = std::make_unique<SPSCQueue>(storage.value());
 
         // // shared flag for mutex
         // pthread_mutex_t *native = static_cast<pthread_mutex_t*>(storage->mutex.native_handle());
@@ -95,58 +129,6 @@ public:
                   << std::endl;
 
         return Subscriber(config, std::move(shm), std::move(queue));
-    }
-
-    // non-copyable
-    Subscriber(const Subscriber&) = delete;
-    Subscriber& operator=(const Subscriber&) = delete;
-
-    // movable
-    Subscriber(Subscriber&& other) noexcept
-        : config_(other.config_), shm_(std::move(other.shm_)), queue_(std::move(other.queue_))
-    {
-        other.queue_ = nullptr;
-    }
-    Subscriber& operator=(Subscriber&& other) noexcept
-    {
-        if (this != &other)
-        {
-            shm_ = std::move(other.shm_);
-            queue_ = std::move(other.queue_);
-            config_ = other.config_;
-            other.queue_ = nullptr;
-        }
-        return *this;
-    }
-
-    [[nodiscard]] inline const PubSubConfig& config() const noexcept
-    {
-        return config_;
-    }
-
-    // inline SPSCQueue& queue() const noexcept
-    // {
-    //     return *queue_;
-    // }
-
-    __attribute__((always_inline)) inline void dequeue_commit(const MessageView message) noexcept
-    {
-        queue_->dequeue_commit(message);
-    }
-
-    [[nodiscard]] __attribute__((always_inline)) inline MessageView dequeue_begin() noexcept
-    {
-        return queue_->dequeue_begin();
-    }
-
-    [[nodiscard]] __attribute__((always_inline)) inline bool is_empty() const noexcept
-    {
-        return queue_->is_empty();
-    }
-
-    [[nodiscard]] __attribute__((always_inline)) inline bool can_dequeue() const noexcept
-    {
-        return queue_->can_dequeue();
     }
 };
 } // namespace pubsub

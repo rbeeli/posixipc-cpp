@@ -19,7 +19,6 @@ namespace queues
 {
 namespace pubsub
 {
-using namespace std::chrono;
 using namespace posix_ipc::queues::spsc;
 
 class Publisher
@@ -30,7 +29,7 @@ private:
     std::unique_ptr<SPSCQueue> queue_; // resides in shared memory
 
 public:
-    time_point<high_resolution_clock> last_drop_time;
+    std::chrono::time_point<std::chrono::high_resolution_clock> last_drop_time;
     size_t drop_count = 0;
 
     Publisher(
