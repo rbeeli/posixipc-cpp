@@ -74,6 +74,11 @@ public:
         return queue_->can_dequeue();
     }
 
+    [[nodiscard]] __attribute__((always_inline)) inline size_t size() const noexcept
+    {
+        return queue_->size();
+    }
+
     [[nodiscard]] static std::expected<Subscriber, PosixIpcError> from_config(
         const PubSubConfig& config
     ) noexcept
