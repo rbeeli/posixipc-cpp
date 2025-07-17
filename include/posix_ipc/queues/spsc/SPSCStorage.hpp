@@ -33,9 +33,9 @@ inline constexpr uint32_t SPSC_ABI_VERSION = 1u;    // bump when layout changes
 struct alignas(SPSC_CACHE_LINE_SIZE) SPSCStorage final
 {
     // ---------- first 64 byte cache line ----------
-    uint32_t magic_;                                   // must equal SPSC_MAGIC
-    uint32_t abi_version_;                             // must equal SPSC_ABI_VERSION
-    size_t storage_size_;                              //
+    uint32_t magic_;                                        // must equal SPSC_MAGIC
+    uint32_t abi_version_;                                  // must equal SPSC_ABI_VERSION
+    size_t storage_size_;                                   //
     std::array<std::byte, SPSC_CACHE_LINE_SIZE - 16> _pad0; // keep next field 64-byte aligned
 
     // ---------- remaining 4 cache lines -----------
@@ -103,7 +103,12 @@ struct alignas(SPSC_CACHE_LINE_SIZE) SPSCStorage final
         {
             return std::unexpected{PosixIpcError(
                 PosixIpcErrorCode::spsc_storage_error,
-                std::format("Storage size {} too small", storage_size),
+                std::format(
+                    "SPSCStorage requires a memory region greater than {} bytes, "
+                    "requested size of {} bytes is too small.",
+                    BUFFER_OFFSET,
+                    storage_size
+                ),
                 loc
             )};
         }
