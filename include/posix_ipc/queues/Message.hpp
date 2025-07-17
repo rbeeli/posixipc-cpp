@@ -26,19 +26,6 @@ struct MessageView
     {
     }
 
-    ~MessageView()
-    {
-        // a view does not own the payload, don't free it
-    }
-
-    // enable copy
-    MessageView(const MessageView&) noexcept = default;
-    MessageView& operator=(const MessageView&) noexcept = default;
-
-    // enable move
-    MessageView(MessageView&&) noexcept = default;
-    MessageView& operator=(MessageView&&) noexcept = default;
-
     __attribute__((always_inline)) [[nodiscard]] inline bool empty() const noexcept
     {
         return size == 0;
