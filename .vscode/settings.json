@@ -89,6 +89,8 @@
         "cinttypes": "cpp",
         "typeindex": "cpp",
         "valarray": "cpp",
-        "csignal": "cpp"
+        "csignal": "cpp",
+        "codecvt": "cpp",
+        "shared_mutex": "cpp"
     }
 }
